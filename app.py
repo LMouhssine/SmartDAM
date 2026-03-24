@@ -107,17 +107,17 @@ def register_routes(app: Flask) -> None:
     def upload_image():
         uploaded_file = request.files.get("image")
         if uploaded_file is None or uploaded_file.filename == "":
-            flash("Choose an image before uploading.", "warning")
+            flash("Choisissez une image avant de lancer l’envoi.", "warning")
             return redirect(url_for("index"))
 
         original_filename = secure_filename(uploaded_file.filename)
         if not original_filename or not allowed_file(original_filename):
-            flash("Unsupported file format. Please upload an image file.", "danger")
+            flash("Format non pris en charge. Veuillez envoyer un fichier image.", "danger")
             return redirect(url_for("index"))
 
         file_bytes = uploaded_file.read()
         if not file_bytes:
-            flash("The uploaded file is empty.", "danger")
+            flash("Le fichier envoyé est vide.", "danger")
             return redirect(url_for("index"))
 
         storage = app.extensions["smartdam.storage"]
@@ -151,9 +151,9 @@ def register_routes(app: Flask) -> None:
             db.session.commit()
 
             if analysis.source == "azure":
-                flash("Image uploaded and analyzed with Azure Vision.", "success")
+                flash("Image envoyée et analysée avec Azure Vision.", "success")
             else:
-                flash("Image uploaded. Local tags were generated as a fallback.", "info")
+                flash("Image envoyée. Des tags locaux ont été générés en repli.", "info")
         except Exception as exc:  # noqa: BLE001
             db.session.rollback()
             if stored_asset is not None:
@@ -162,7 +162,7 @@ def register_routes(app: Flask) -> None:
                 except StorageError:
                     app.logger.warning("Could not clean up the stored file after a failed upload.")
             app.logger.exception("Image upload failed: %s", exc)
-            flash("The upload failed. Check your configuration and try again.", "danger")
+            flash("L’envoi a échoué. Vérifiez la configuration puis réessayez.", "danger")
 
         return redirect(url_for("index"))
 
@@ -193,11 +193,11 @@ def register_routes(app: Flask) -> None:
             storage.delete(image)
             db.session.delete(image)
             db.session.commit()
-            flash("Image deleted.", "success")
+            flash("Image supprimée.", "success")
         except Exception as exc:  # noqa: BLE001
             db.session.rollback()
             app.logger.exception("Image deletion failed: %s", exc)
-            flash("The image could not be deleted.", "danger")
+            flash("L’image n’a pas pu être supprimée.", "danger")
 
         return redirect(url_for("index"))
 

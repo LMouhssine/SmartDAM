@@ -134,7 +134,7 @@ class StorageManager:
 
     @property
     def default_backend_label(self) -> str:
-        return "Azure Blob Storage" if self.use_azure_storage and self.azure_enabled else "Local disk"
+        return "Azure Blob Storage" if self.use_azure_storage and self.azure_enabled else "Disque local"
 
     def save(self, file_bytes: bytes, original_filename: str, content_type: str | None) -> StoredAsset:
         if self.use_azure_storage and self.azure_enabled:

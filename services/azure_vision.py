@@ -53,7 +53,7 @@ class AzureVisionService:
 
     @property
     def provider_label(self) -> str:
-        return "Azure Vision" if self.enabled else "Local fallback"
+        return "Azure Vision" if self.enabled else "Repli local"
 
     def _get_client(self):
         if not self.enabled:
@@ -119,7 +119,7 @@ class AzureVisionService:
         filename_stem = Path(original_filename).stem.lower()
         tokens = re.split(r"[^a-zA-Z0-9]+", filename_stem)
         tags = [token for token in tokens if len(token) > 1]
-        tags.extend(["image", "upload"])
+        tags.extend(["image", "envoi"])
         normalized_tags = _unique_tags(tags)
 
         has_people = any(
@@ -131,7 +131,7 @@ class AzureVisionService:
 
         return AnalysisResult(
             description=self._default_description(original_filename),
-            tags=normalized_tags or ["image", "upload"],
+            tags=normalized_tags or ["image", "envoi"],
             has_people=has_people,
             source="local",
         )
@@ -140,8 +140,8 @@ class AzureVisionService:
     def _default_description(original_filename: str) -> str:
         filename_stem = Path(original_filename).stem.replace("-", " ").replace("_", " ").strip()
         if filename_stem:
-            return f"Uploaded image: {filename_stem}"
-        return "Uploaded image"
+            return f"Image envoyee : {filename_stem}"
+        return "Image envoyee"
 
 
 def build_vision_service(config: dict[str, object], logger: logging.Logger | None = None) -> AzureVisionService:

@@ -6,28 +6,28 @@
 <section class="hero-panel p-4 p-lg-5 mb-4">
     <div class="row g-4 align-items-center">
         <div class="col-lg-8">
-            <span class="status-pill mb-3">Smart Digital Asset Management</span>
-            <h1 class="display-5 fw-bold mb-3">Upload, tag, search, and evolve from local storage to Azure.</h1>
+            <span class="status-pill mb-3">Gestion intelligente d’assets visuels</span>
+            <h1 class="display-5 fw-bold mb-3">Envoyez, taggez, recherchez et faites évoluer l’app du local vers Azure.</h1>
             <p class="lead muted-copy mb-4">
-                This foundation starts with Flask, Bootstrap, and SQLite. It works locally immediately, and it switches
-                to Azure Blob Storage and Azure Vision as soon as the required environment variables are configured.
+                Cette base repose sur Flask, Bootstrap et SQLite. Elle fonctionne immédiatement en local et bascule
+                vers Azure Blob Storage et Azure Vision dès que les variables d’environnement nécessaires sont définies.
             </p>
             <div class="d-flex flex-wrap gap-2">
-                <span class="metric-pill">{{ images|length }} result{{ "" if images|length == 1 else "s" }}</span>
-                <span class="metric-pill">Search by tags</span>
-                <span class="metric-pill">Delete supported</span>
+                <span class="metric-pill">{{ images|length }} résultat{{ "" if images|length == 1 else "s" }}</span>
+                <span class="metric-pill">Recherche par tags</span>
+                <span class="metric-pill">Suppression incluse</span>
             </div>
         </div>
         <div class="col-lg-4">
             <div class="smartdam-card p-4 h-100">
-                <h2 class="section-title h4 mb-3">Current mode</h2>
-                <p class="mb-2"><strong>Storage:</strong> {{ storage_label }}</p>
-                <p class="mb-2"><strong>Analysis:</strong> {{ vision_label }}</p>
+                <h2 class="section-title h4 mb-3">Mode actuel</h2>
+                <p class="mb-2"><strong>Stockage :</strong> {{ storage_label }}</p>
+                <p class="mb-2"><strong>Analyse :</strong> {{ vision_label }}</p>
                 <p class="muted-copy mb-0">
                     {% if azure_vision_enabled %}
-                        New uploads are analyzed with Azure Image Analysis.
+                        Les nouveaux envois sont analysés avec Azure Image Analysis.
                     {% else %}
-                        Azure Vision is not configured yet, so fallback tags are derived from the filename.
+                        Azure Vision n’est pas encore configuré, donc les tags de repli sont dérivés du nom du fichier.
                     {% endif %}
                 </p>
             </div>
@@ -38,34 +38,34 @@
 <section class="row g-4 mb-5">
     <div class="col-lg-5">
         <div class="smartdam-card upload-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">1. Upload an image</h2>
+            <h2 class="section-title h4 mb-3">1. Envoyer une image</h2>
             <p class="muted-copy mb-4">
-                Local upload is the first milestone. The same form keeps working when Azure Blob Storage is enabled.
+                L’envoi local est la première étape. Le même formulaire continue de fonctionner une fois Azure Blob Storage activé.
             </p>
             <form action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data">
                 <div class="mb-3">
-                    <label for="image" class="form-label">Image file</label>
+                    <label for="image" class="form-label">Fichier image</label>
                     <input class="form-control" type="file" id="image" name="image" accept="image/*" required>
                 </div>
-                <button type="submit" class="btn btn-smartdam w-100">Upload Image</button>
+                <button type="submit" class="btn btn-smartdam w-100">Envoyer l’image</button>
             </form>
         </div>
     </div>
     <div class="col-lg-7">
         <div class="smartdam-card search-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">2. Search the catalog</h2>
+            <h2 class="section-title h4 mb-3">2. Rechercher dans le catalogue</h2>
             <p class="muted-copy mb-4">
-                Search works against stored tags, descriptions, and filenames. The people filter is included as a simple advanced filter.
+                La recherche s’appuie sur les tags, les descriptions et les noms de fichiers. Le filtre sur les personnes sert d’option avancée simple.
             </p>
             <form method="get" action="{{ url_for('index') }}" class="row g-3 align-items-end">
                 <div class="col-md-8">
-                    <label for="q" class="form-label">Keywords</label>
+                    <label for="q" class="form-label">Mots-clés</label>
                     <input
                         type="text"
                         class="form-control"
                         id="q"
                         name="q"
-                        placeholder="Try: beach, dog, food, portrait"
+                        placeholder="Exemple : plage, chien, nourriture, portrait"
                         value="{{ search_query }}"
                     >
                 </div>
@@ -73,13 +73,13 @@
                     <div class="form-check mt-md-4 pt-md-2">
                         <input class="form-check-input" type="checkbox" value="1" id="people_only" name="people_only" {% if people_only %}checked{% endif %}>
                         <label class="form-check-label" for="people_only">
-                            People only
+                            Personnes uniquement
                         </label>
                     </div>
                 </div>
                 <div class="col-12 d-flex flex-wrap gap-2">
-                    <button type="submit" class="btn btn-dark">Search</button>
-                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Reset</a>
+                    <button type="submit" class="btn btn-dark">Rechercher</button>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Réinitialiser</a>
                 </div>
             </form>
         </div>
@@ -88,8 +88,8 @@
 
 <section>
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="section-title h3 mb-0">Image Library</h2>
-        <span class="muted-copy">Newest first</span>
+        <h2 class="section-title h3 mb-0">Bibliothèque d’images</h2>
+        <span class="muted-copy">Plus récentes d’abord</span>
     </div>
 
     {% if images %}
@@ -100,10 +100,10 @@
                         <img src="{{ image.image_url }}" alt="{{ image.original_filename }}">
                         <div class="p-4">
                             <div class="d-flex flex-wrap gap-2 mb-3">
-                                <span class="badge tag-badge">{{ image.storage_backend }}</span>
-                                <span class="badge tag-badge">{{ image.analysis_source }}</span>
+                                <span class="badge tag-badge">{{ "azure" if image.storage_backend == "azure" else "local" }}</span>
+                                <span class="badge tag-badge">{{ "analyse Azure" if image.analysis_source == "azure" else "analyse locale" }}</span>
                                 {% if image.has_people %}
-                                    <span class="badge text-bg-warning">people detected</span>
+                                    <span class="badge text-bg-warning">personnes détectées</span>
                                 {% endif %}
                             </div>
                             <h3 class="h5 mb-2">{{ image.original_filename }}</h3>
@@ -117,7 +117,7 @@
                                 {% endfor %}
                             </div>
                             <form action="{{ url_for('delete_image', image_id=image.id) }}" method="post">
-                                <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                                <button type="submit" class="btn btn-outline-danger btn-sm">Supprimer</button>
                             </form>
                         </div>
                     </article>
@@ -126,15 +126,15 @@
         </div>
     {% else %}
         <div class="empty-panel">
-            <h3 class="section-title h4 mb-2">No images yet</h3>
+            <h3 class="section-title h4 mb-2">Aucune image pour l’instant</h3>
             <p class="muted-copy mb-0">
-                Upload your first asset to populate the catalog, generate tags, and test keyword search.
+                Envoyez votre premier asset pour alimenter le catalogue, générer des tags et tester la recherche par mots-clés.
             </p>
         </div>
     {% endif %}
 </section>
 
 <footer class="smartdam-footer mt-5 pt-3">
-    Foundation completed: Flask routes, Bootstrap UI, local uploads, SQLite metadata, search, delete, and Azure-ready services.
+    Base en place : routes Flask, interface Bootstrap, envois locaux, métadonnées SQLite, recherche, suppression et services prêts pour Azure.
 </footer>
 {% endblock %}
