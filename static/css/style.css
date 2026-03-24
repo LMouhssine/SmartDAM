@@ -1,0 +1,137 @@
+:root {
+    --smartdam-ink: #14213d;
+    --smartdam-surface: #fffaf2;
+    --smartdam-accent: #fca311;
+    --smartdam-accent-deep: #d98000;
+    --smartdam-muted: #5f6b7a;
+    --smartdam-border: rgba(20, 33, 61, 0.12);
+    --smartdam-card-shadow: 0 18px 40px rgba(20, 33, 61, 0.08);
+}
+
+body {
+    font-family: "Source Sans 3", sans-serif;
+    background:
+        radial-gradient(circle at top right, rgba(252, 163, 17, 0.25), transparent 30%),
+        linear-gradient(180deg, #fffaf2 0%, #f4efe4 100%);
+    color: var(--smartdam-ink);
+    min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+.navbar-brand,
+.section-title {
+    font-family: "Space Grotesk", sans-serif;
+}
+
+.navbar {
+    backdrop-filter: blur(14px);
+    background: rgba(255, 250, 242, 0.85);
+    border-bottom: 1px solid var(--smartdam-border);
+}
+
+.navbar-brand {
+    letter-spacing: 0.04em;
+    font-weight: 700;
+}
+
+.hero-panel,
+.smartdam-card,
+.empty-panel {
+    border: 1px solid var(--smartdam-border);
+    border-radius: 1.25rem;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: var(--smartdam-card-shadow);
+}
+
+.hero-panel {
+    overflow: hidden;
+    position: relative;
+}
+
+.hero-panel::after {
+    content: "";
+    position: absolute;
+    inset: auto -80px -80px auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: rgba(252, 163, 17, 0.12);
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.4rem 0.8rem;
+    background: rgba(20, 33, 61, 0.08);
+    color: var(--smartdam-ink);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.metric-pill {
+    border-radius: 999px;
+    background: rgba(252, 163, 17, 0.12);
+    color: var(--smartdam-accent-deep);
+    padding: 0.45rem 0.85rem;
+    font-weight: 600;
+}
+
+.btn-smartdam {
+    background: var(--smartdam-accent);
+    border-color: var(--smartdam-accent);
+    color: #1e1e1e;
+    font-weight: 700;
+}
+
+.btn-smartdam:hover,
+.btn-smartdam:focus {
+    background: var(--smartdam-accent-deep);
+    border-color: var(--smartdam-accent-deep);
+    color: #fff;
+}
+
+.smartdam-card img {
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    width: 100%;
+}
+
+.tag-badge {
+    background: rgba(20, 33, 61, 0.08);
+    color: var(--smartdam-ink);
+    border: 1px solid rgba(20, 33, 61, 0.08);
+}
+
+.muted-copy {
+    color: var(--smartdam-muted);
+}
+
+.empty-panel {
+    padding: 3rem 1.5rem;
+    text-align: center;
+}
+
+.search-panel .form-control,
+.search-panel .form-check-input,
+.upload-panel .form-control {
+    border-color: rgba(20, 33, 61, 0.14);
+}
+
+.smartdam-footer {
+    color: var(--smartdam-muted);
+    font-size: 0.95rem;
+}
+
+@media (max-width: 767.98px) {
+    .hero-panel {
+        text-align: center;
+    }
+
+    .status-pill {
+        justify-content: center;
+    }
+}
