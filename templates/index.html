@@ -6,16 +6,16 @@
 <section class="hero-panel p-4 p-lg-5 mb-4">
     <div class="row g-4 align-items-center">
         <div class="col-lg-8">
-            <span class="status-pill mb-3">Gestion intelligente d’assets visuels</span>
-            <h1 class="display-5 fw-bold mb-3">Envoyez, taggez, recherchez et faites évoluer l’app du local vers Azure.</h1>
+            <span class="status-pill mb-3">Gestion intelligente d'assets visuels</span>
+            <h1 class="display-5 fw-bold mb-3">Envoyez, taggez, recherchez et faites évoluer l'app du local vers Azure.</h1>
             <p class="lead muted-copy mb-4">
-                Cette base repose sur Flask, Bootstrap et SQLite. Elle fonctionne immédiatement en local et bascule
-                vers Azure Blob Storage et Azure Vision dès que les variables d’environnement nécessaires sont définies.
+                Cette base repose sur Flask, Bootstrap et SQLite. Elle fonctionne immédiatement en local
+                et passe en mode Azure dès que Blob Storage et Azure Vision sont configurés.
             </p>
             <div class="d-flex flex-wrap gap-2">
                 <span class="metric-pill">{{ images|length }} résultat{{ "" if images|length == 1 else "s" }}</span>
                 <span class="metric-pill">Recherche par tags</span>
-                <span class="metric-pill">Suppression incluse</span>
+                <span class="metric-pill">Descriptions automatiques</span>
             </div>
         </div>
         <div class="col-lg-4">
@@ -24,10 +24,14 @@
                 <p class="mb-2"><strong>Stockage :</strong> {{ storage_label }}</p>
                 <p class="mb-2"><strong>Analyse :</strong> {{ vision_label }}</p>
                 <p class="muted-copy mb-0">
-                    {% if azure_vision_enabled %}
-                        Les nouveaux envois sont analysés avec Azure Image Analysis.
+                    {% if azure_storage_active and azure_vision_enabled %}
+                        Les nouveaux envois sont stockés sur Azure Blob Storage puis analysés via Azure Vision.
+                    {% elif azure_storage_active %}
+                        Azure Blob Storage est disponible, mais Azure Vision n'est pas encore configuré.
+                    {% elif azure_vision_enabled %}
+                        Le stockage reste local, mais Azure Vision peut analyser les nouveaux fichiers.
                     {% else %}
-                        Azure Vision n’est pas encore configuré, donc les tags de repli sont dérivés du nom du fichier.
+                        Le mode local reste actif avec un repli de tags basé sur le nom du fichier.
                     {% endif %}
                 </p>
             </div>
@@ -40,14 +44,15 @@
         <div class="smartdam-card upload-panel p-4 h-100">
             <h2 class="section-title h4 mb-3">1. Envoyer une image</h2>
             <p class="muted-copy mb-4">
-                L’envoi local est la première étape. Le même formulaire continue de fonctionner une fois Azure Blob Storage activé.
+                Quand Azure Blob Storage est activé, SmartDAM envoie le fichier vers Azure, récupère l'URL publique du blob,
+                puis déclenche l'analyse d'image avant d'enregistrer les métadonnées.
             </p>
             <form action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data">
                 <div class="mb-3">
                     <label for="image" class="form-label">Fichier image</label>
                     <input class="form-control" type="file" id="image" name="image" accept="image/*" required>
                 </div>
-                <button type="submit" class="btn btn-smartdam w-100">Envoyer l’image</button>
+                <button type="submit" class="btn btn-smartdam w-100">Envoyer l'image</button>
             </form>
         </div>
     </div>
@@ -55,7 +60,8 @@
         <div class="smartdam-card search-panel p-4 h-100">
             <h2 class="section-title h4 mb-3">2. Rechercher dans le catalogue</h2>
             <p class="muted-copy mb-4">
-                La recherche s’appuie sur les tags, les descriptions et les noms de fichiers. Le filtre sur les personnes sert d’option avancée simple.
+                La recherche s'appuie sur les tags texte, la description et le nom de fichier.
+                Les badges affichés ci-dessous proviennent de la liste structurée `tags_json`.
             </p>
             <form method="get" action="{{ url_for('index') }}" class="row g-3 align-items-end">
                 <div class="col-md-8">
@@ -88,8 +94,8 @@
 
 <section>
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="section-title h3 mb-0">Bibliothèque d’images</h2>
-        <span class="muted-copy">Plus récentes d’abord</span>
+        <h2 class="section-title h3 mb-0">Bibliothèque d'images</h2>
+        <span class="muted-copy">Plus récentes d'abord</span>
     </div>
 
     {% if images %}
@@ -100,8 +106,8 @@
                         <img src="{{ image.image_url }}" alt="{{ image.original_filename }}">
                         <div class="p-4">
                             <div class="d-flex flex-wrap gap-2 mb-3">
-                                <span class="badge tag-badge">{{ "azure" if image.storage_backend == "azure" else "local" }}</span>
-                                <span class="badge tag-badge">{{ "analyse Azure" if image.analysis_source == "azure" else "analyse locale" }}</span>
+                                <span class="badge tag-badge">{{ "Azure Blob" if image.storage_backend == "azure" else "Local" }}</span>
+                                <span class="badge tag-badge">{{ "Analyse Azure" if image.analysis_source == "azure" else "Analyse locale" }}</span>
                                 {% if image.has_people %}
                                     <span class="badge text-bg-warning">personnes détectées</span>
                                 {% endif %}
@@ -110,7 +116,7 @@
                             <p class="muted-copy small mb-3">
                                 {{ image.created_at.strftime("%Y-%m-%d %H:%M") }}
                             </p>
-                            <p class="mb-3">{{ image.description }}</p>
+                            <p class="mb-3">{{ image.description or "Aucune description disponible." }}</p>
                             <div class="d-flex flex-wrap gap-2 mb-4">
                                 {% for tag in image.tag_list %}
                                     <span class="badge tag-badge">{{ tag }}</span>
@@ -126,7 +132,7 @@
         </div>
     {% else %}
         <div class="empty-panel">
-            <h3 class="section-title h4 mb-2">Aucune image pour l’instant</h3>
+            <h3 class="section-title h4 mb-2">Aucune image pour l'instant</h3>
             <p class="muted-copy mb-0">
                 Envoyez votre premier asset pour alimenter le catalogue, générer des tags et tester la recherche par mots-clés.
             </p>
@@ -135,6 +141,6 @@
 </section>
 
 <footer class="smartdam-footer mt-5 pt-3">
-    Base en place : routes Flask, interface Bootstrap, envois locaux, métadonnées SQLite, recherche, suppression et services prêts pour Azure.
+    Flux Azure-first disponible : upload Blob, analyse Vision, tags structurés, description et persistance SQLite.
 </footer>
 {% endblock %}
