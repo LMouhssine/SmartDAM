@@ -1,16 +1,16 @@
 # SmartDAM
 
-SmartDAM is a Flask-based Digital Asset Management foundation for image uploads, AI-powered tagging, and keyword search.
+SmartDAM est une base d’application de gestion d’actifs numériques construite avec Flask, pensée pour l’upload d’images, le marquage assisté par IA et la recherche par mots-clés.
 
-It starts with a local-first workflow:
+Le projet démarre avec un fonctionnement local, puis peut évoluer vers Azure :
 
-1. Upload images from the web UI
-2. Save files locally or in Azure Blob Storage
-3. Analyze images with Azure Vision when configured
-4. Store metadata in SQLite
-5. Search images by tags, descriptions, and filenames
+1. téléverser des images depuis l’interface web
+2. enregistrer les fichiers en local ou dans Azure Blob Storage
+3. analyser les images avec Azure Vision si la configuration est présente
+4. stocker les métadonnées dans SQLite
+5. rechercher les images par tags, descriptions et noms de fichiers
 
-## Project structure
+## Structure du projet
 
 ```text
 SmartDAM/
@@ -30,57 +30,57 @@ SmartDAM/
 `-- uploads/
 ```
 
-## Step-by-step foundation
+## Base du projet, étape par étape
 
-### 1. Flask application shell
+### 1. Structure principale Flask
 
-`app.py` creates the Flask app, initializes SQLite through SQLAlchemy, and exposes the main routes:
+`app.py` crée l’application Flask, initialise SQLite via SQLAlchemy et expose les routes principales :
 
-- `/` displays the gallery and search form
-- `/upload` handles uploads
-- `/images/<id>/content` serves stored images
-- `/images/<id>/delete` removes an image and its metadata
+- `/` affiche la galerie et le formulaire de recherche
+- `/upload` gère le téléversement d’images
+- `/images/<id>/content` sert le contenu des images stockées
+- `/images/<id>/delete` supprime une image et ses métadonnées
 
-### 2. Bootstrap interface
+### 2. Interface Bootstrap
 
-The UI is intentionally simple:
+L’interface reste volontairement simple :
 
-- a hero section that shows the active storage and analysis mode
-- an upload form
-- a search form with a `People only` filter
-- a responsive image grid
+- une section d’accueil qui affiche le mode de stockage et d’analyse actif
+- un formulaire d’upload
+- un formulaire de recherche avec un filtre `People only`
+- une grille d’images responsive
 
-### 3. Local upload first
+### 3. Upload local en premier
 
-By default, SmartDAM stores new files in the local `uploads/` directory. This lets you validate the workflow before configuring Azure.
+Par défaut, SmartDAM enregistre les nouveaux fichiers dans le dossier local `uploads/`. Cela permet de valider le flux fonctionnel avant de configurer Azure.
 
-### 4. Database and search
+### 4. Base de données et recherche
 
-Each uploaded image creates a SQLite record with:
+Chaque image téléversée crée un enregistrement SQLite avec :
 
-- original filename
-- internal image URL
-- description
-- tags
-- storage backend
-- people detection flag
+- le nom du fichier d’origine
+- l’URL interne de l’image
+- la description
+- les tags
+- le backend de stockage
+- un indicateur de présence de personnes
 
-Search queries match tags, descriptions, and filenames.
+La recherche interroge les tags, les descriptions et les noms de fichiers.
 
-### 5. Progressive Azure integration
+### 5. Intégration progressive d’Azure
 
-The service layer is already prepared for Azure:
+La couche de services est déjà prête pour Azure :
 
-- `services/storage.py` switches between local disk and Azure Blob Storage
-- `services/azure_vision.py` uses Azure Image Analysis for captioning, tags, and people detection
+- `services/storage.py` bascule entre le disque local et Azure Blob Storage
+- `services/azure_vision.py` utilise Azure Image Analysis pour la description, les tags et la détection de personnes
 
-If Azure is not configured yet, SmartDAM falls back to lightweight local tags derived from the filename.
+Si Azure n’est pas encore configuré, SmartDAM utilise un repli local avec des tags dérivés du nom du fichier.
 
-## Environment variables
+## Variables d’environnement
 
-Copy `.env.example` to `.env` and adjust values as needed.
+Copiez `.env.example` vers `.env`, puis adaptez les valeurs.
 
-### Required for local mode
+### Requises pour le mode local
 
 ```env
 FLASK_SECRET_KEY=change-me
@@ -88,7 +88,7 @@ DATABASE_URL=sqlite:///smartdam.db
 UPLOAD_FOLDER=uploads
 ```
 
-### Optional for Azure Blob Storage
+### Optionnelles pour Azure Blob Storage
 
 ```env
 USE_AZURE_STORAGE=true
@@ -96,44 +96,44 @@ AZURE_STORAGE_CONNECTION_STRING=your-azure-storage-connection-string
 AZURE_STORAGE_CONTAINER=smartdam-images
 ```
 
-### Optional for Azure Vision
+### Optionnelles pour Azure Vision
 
 ```env
 VISION_ENDPOINT=https://your-resource-name.cognitiveservices.azure.com
 VISION_KEY=your-azure-vision-key
 ```
 
-## Run the project
+## Exécuter le projet
 
-### 1. Create a virtual environment
+### 1. Créer un environnement virtuel
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
-### 2. Install dependencies
+### 2. Installer les dépendances
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-### 3. Start the Flask app
+### 3. Démarrer l’application Flask
 
 ```powershell
 python app.py
 ```
 
-Then open `http://127.0.0.1:5000`.
+Ouvrez ensuite `http://127.0.0.1:5000`.
 
-## Azure notes
+## Notes Azure
 
-- Azure Blob uploads follow the official `azure-storage-blob` pattern using `BlobServiceClient` and `upload_blob(..., overwrite=True)`.
-- Azure Vision uses the official `azure-ai-vision-imageanalysis` client with `CAPTION`, `TAGS`, and `PEOPLE` visual features.
-- The current Microsoft Learn documentation references the `azure-ai-vision-imageanalysis` preview package line, so `requirements.txt` uses `1.0.0b3` or newer in that series.
-- The app serves images through Flask, so your blob container can remain private during development.
+- Les uploads Azure Blob suivent le schéma officiel de `azure-storage-blob` avec `BlobServiceClient` et `upload_blob(..., overwrite=True)`.
+- Azure Vision utilise le client officiel `azure-ai-vision-imageanalysis` avec les fonctionnalités visuelles `CAPTION`, `TAGS` et `PEOPLE`.
+- La documentation Microsoft Learn actuelle s’appuie sur la branche preview du package `azure-ai-vision-imageanalysis`, c’est pourquoi `requirements.txt` utilise `1.0.0b3` ou une version plus récente de cette série.
+- L’application sert les images via Flask, ce qui permet de garder le conteneur Blob privé pendant le développement.
 
-## Current bonus features
+## Bonus déjà inclus
 
-- image deletion
-- advanced filtering with `People only`
+- suppression d’image
+- filtrage avancé avec `People only`
