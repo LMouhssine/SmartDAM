@@ -3,35 +3,60 @@
 {% block title %}SmartDAM{% endblock %}
 
 {% block content %}
-<section class="hero-panel p-4 p-lg-5 mb-4">
-    <div class="row g-4 align-items-center">
+<section class="hero-panel hero-shell p-4 p-lg-5 mb-4">
+    <div class="hero-orb hero-orb-a"></div>
+    <div class="hero-orb hero-orb-b"></div>
+    <div class="row g-4 align-items-center position-relative">
         <div class="col-lg-8">
-            <span class="status-pill mb-3">Gestion intelligente d'assets visuels</span>
-            <h1 class="display-5 fw-bold mb-3">Envoyez, taggez, recherchez et faites évoluer l'app du local vers Azure.</h1>
-            <p class="lead muted-copy mb-4">
-                Cette base repose sur Flask, Bootstrap et SQLite. Elle fonctionne immédiatement en local
-                et passe en mode Azure dès que Blob Storage et Azure Vision sont configurés.
+            <span class="status-pill mb-3">SmartDAM · Asset management visuel</span>
+            <h1 class="display-5 fw-bold mb-3 hero-title">Un catalogue d'images plus rapide à explorer, plus simple à filtrer, prêt pour Azure.</h1>
+            <p class="lead muted-copy mb-4 hero-copy">
+                Chargez vos images, récupérez des tags et une description automatique, puis recherchez tout dans une galerie claire et lisible.
+                Le mode local reste disponible, mais le flux Azure-first est prêt pour la production.
             </p>
-            <div class="d-flex flex-wrap gap-2">
-                <span class="metric-pill">{{ images|length }} résultat{{ "" if images|length == 1 else "s" }}</span>
-                <span class="metric-pill">Recherche par tags</span>
-                <span class="metric-pill">Descriptions automatiques</span>
+            <div class="hero-stats">
+                <div class="stat-card">
+                    <span class="stat-value">{{ images|length }}</span>
+                    <span class="stat-label">asset{{ "" if images|length == 1 else "s" }}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">1</span>
+                    <span class="stat-label">upload flow</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">AI</span>
+                    <span class="stat-label">tagging</span>
+                </div>
             </div>
         </div>
         <div class="col-lg-4">
-            <div class="smartdam-card p-4 h-100">
-                <h2 class="section-title h4 mb-3">Mode actuel</h2>
-                <p class="mb-2"><strong>Stockage :</strong> {{ storage_label }}</p>
-                <p class="mb-2"><strong>Analyse :</strong> {{ vision_label }}</p>
+            <div class="smartdam-card mode-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <p class="eyebrow mb-1">Mode actif</p>
+                        <h2 class="section-title h4 mb-0">Pipeline</h2>
+                    </div>
+                    <span class="mode-dot {% if azure_storage_active and azure_vision_enabled %}is-on{% else %}is-off{% endif %}"></span>
+                </div>
+                <div class="mode-grid mb-3">
+                    <div class="mode-item">
+                        <span class="mode-label">Stockage</span>
+                        <strong>{{ storage_label }}</strong>
+                    </div>
+                    <div class="mode-item">
+                        <span class="mode-label">Analyse</span>
+                        <strong>{{ vision_label }}</strong>
+                    </div>
+                </div>
                 <p class="muted-copy mb-0">
                     {% if azure_storage_active and azure_vision_enabled %}
-                        Les nouveaux envois sont stockés sur Azure Blob Storage puis analysés via Azure Vision.
+                        Les fichiers partent sur Azure Blob Storage puis sont enrichis par Azure Vision.
                     {% elif azure_storage_active %}
-                        Azure Blob Storage est disponible, mais Azure Vision n'est pas encore configuré.
+                        Le stockage Azure est actif, mais Azure Vision doit encore être configuré.
                     {% elif azure_vision_enabled %}
-                        Le stockage reste local, mais Azure Vision peut analyser les nouveaux fichiers.
+                        Azure Vision peut analyser les fichiers, mais le stockage reste local.
                     {% else %}
-                        Le mode local reste actif avec un repli de tags basé sur le nom du fichier.
+                        Le mode local est actif avec un repli minimal pour les tags.
                     {% endif %}
                 </p>
             </div>
@@ -42,105 +67,143 @@
 <section class="row g-4 mb-5">
     <div class="col-lg-5">
         <div class="smartdam-card upload-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">1. Envoyer une image</h2>
-            <p class="muted-copy mb-4">
-                Quand Azure Blob Storage est activé, SmartDAM envoie le fichier vers Azure, récupère l'URL publique du blob,
-                puis déclenche l'analyse d'image avant d'enregistrer les métadonnées.
-            </p>
-            <form action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label for="image" class="form-label">Fichier image</label>
-                    <input class="form-control" type="file" id="image" name="image" accept="image/*" required>
+            <div class="section-heading mb-3">
+                <span class="section-step">01</span>
+                <div>
+                    <p class="eyebrow mb-1">Ajouter</p>
+                    <h2 class="section-title h4 mb-0">Envoyer une image</h2>
                 </div>
-                <button type="submit" class="btn btn-smartdam w-100">Envoyer l'image</button>
+            </div>
+            <p class="muted-copy mb-4">
+                Les envois sont traités en une seule étape. Quand Azure est activé, SmartDAM stocke le fichier, récupère l'URL publique du blob,
+                puis lance l'analyse pour enrichir la fiche.
+            </p>
+            <form action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data" class="upload-form">
+                <label for="image" class="upload-dropzone">
+                    <span class="upload-icon">+</span>
+                    <span class="upload-title">Cliquez pour choisir une image</span>
+                    <span class="upload-hint">PNG, JPG, WEBP, GIF</span>
+                    <input class="visually-hidden" type="file" id="image" name="image" accept="image/*" required>
+                </label>
+                <button type="submit" class="btn btn-smartdam w-100 mt-3">Envoyer l'image</button>
             </form>
         </div>
     </div>
     <div class="col-lg-7">
         <div class="smartdam-card search-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">2. Rechercher dans le catalogue</h2>
+            <div class="section-heading mb-3">
+                <span class="section-step">02</span>
+                <div>
+                    <p class="eyebrow mb-1">Explorer</p>
+                    <h2 class="section-title h4 mb-0">Rechercher dans le catalogue</h2>
+                </div>
+            </div>
             <p class="muted-copy mb-4">
-                La recherche s'appuie sur les tags texte, la description et le nom de fichier.
-                Les badges affichés ci-dessous proviennent de la liste structurée `tags_json`.
+                La recherche utilise le texte miroir des tags, la description et le nom du fichier. Les badges affichés dans les cartes
+                proviennent directement de la liste structurée `tags_json`.
             </p>
-            <form method="get" action="{{ url_for('index') }}" class="row g-3 align-items-end">
-                <div class="col-md-8">
-                    <label for="q" class="form-label">Mots-clés</label>
+            <form method="get" action="{{ url_for('index') }}" class="search-form">
+                <div class="search-box">
+                    <span class="search-icon">⌕</span>
                     <input
                         type="text"
-                        class="form-control"
+                        class="form-control form-control-lg search-input"
                         id="q"
                         name="q"
-                        placeholder="Exemple : plage, chien, nourriture, portrait"
+                        placeholder="Exemple : plage, chien, portrait, food"
                         value="{{ search_query }}"
                     >
                 </div>
-                <div class="col-md-4">
-                    <div class="form-check mt-md-4 pt-md-2">
+                <div class="d-flex flex-wrap gap-3 align-items-center mt-3">
+                    <div class="form-check m-0">
                         <input class="form-check-input" type="checkbox" value="1" id="people_only" name="people_only" {% if people_only %}checked{% endif %}>
                         <label class="form-check-label" for="people_only">
                             Personnes uniquement
                         </label>
                     </div>
-                </div>
-                <div class="col-12 d-flex flex-wrap gap-2">
-                    <button type="submit" class="btn btn-dark">Rechercher</button>
-                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Réinitialiser</a>
+                    <div class="quick-filters">
+                        <button type="submit" class="btn btn-dark">Rechercher</button>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Réinitialiser</a>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 </section>
 
-<section>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="section-title h3 mb-0">Bibliothèque d'images</h2>
-        <span class="muted-copy">Plus récentes d'abord</span>
+<section class="gallery-section">
+    <div class="section-bar mb-3">
+        <div>
+            <p class="eyebrow mb-1">Bibliothèque</p>
+            <h2 class="section-title h3 mb-0">Dernières images</h2>
+        </div>
+        <span class="muted-copy">{{ images|length }} élément{{ "" if images|length == 1 else "s" }}</span>
     </div>
 
     {% if images %}
         <div class="row g-4">
             {% for image in images %}
                 <div class="col-md-6 col-xl-4">
-                    <article class="smartdam-card h-100 overflow-hidden">
-                        <img src="{{ image.image_url }}" alt="{{ image.original_filename }}">
+                    <article class="smartdam-card gallery-card h-100 overflow-hidden">
+                        <a href="{{ image.image_url }}" target="_blank" rel="noopener" class="gallery-media">
+                            <img src="{{ image.image_url }}" alt="{{ image.original_filename }}">
+                        </a>
                         <div class="p-4">
-                            <div class="d-flex flex-wrap gap-2 mb-3">
-                                <span class="badge tag-badge">{{ "Azure Blob" if image.storage_backend == "azure" else "Local" }}</span>
-                                <span class="badge tag-badge">{{ "Analyse Azure" if image.analysis_source == "azure" else "Analyse locale" }}</span>
-                                {% if image.has_people %}
-                                    <span class="badge text-bg-warning">personnes détectées</span>
-                                {% endif %}
+                            <div class="d-flex justify-content-between gap-3 align-items-start mb-3">
+                                <div>
+                                    <h3 class="h5 mb-1 text-truncate">{{ image.original_filename }}</h3>
+                                    <p class="muted-copy small mb-0">
+                                        {{ image.created_at.strftime("%d/%m/%Y %H:%M") }}
+                                    </p>
+                                </div>
+                                <span class="status-chip {% if image.storage_backend == 'azure' %}is-azure{% else %}is-local{% endif %}">
+                                    {{ "Azure" if image.storage_backend == "azure" else "Local" }}
+                                </span>
                             </div>
-                            <h3 class="h5 mb-2">{{ image.original_filename }}</h3>
-                            <p class="muted-copy small mb-3">
-                                {{ image.created_at.strftime("%Y-%m-%d %H:%M") }}
+
+                            <p class="card-description mb-3">
+                                {{ image.description or "Aucune description disponible." }}
                             </p>
-                            <p class="mb-3">{{ image.description or "Aucune description disponible." }}</p>
-                            <div class="d-flex flex-wrap gap-2 mb-4">
+
+                            <div class="tag-row mb-4">
                                 {% for tag in image.tag_list %}
                                     <span class="badge tag-badge">{{ tag }}</span>
                                 {% endfor %}
                             </div>
-                            <form action="{{ url_for('delete_image', image_id=image.id) }}" method="post">
-                                <button type="submit" class="btn btn-outline-danger btn-sm">Supprimer</button>
-                            </form>
+
+                            <div class="card-footer-actions">
+                                <span class="analysis-pill {% if image.analysis_source == 'azure' %}is-azure{% else %}is-local{% endif %}">
+                                    {{ "Analyse Azure" if image.analysis_source == "azure" else "Analyse locale" }}
+                                </span>
+                                {% if image.has_people %}
+                                    <span class="analysis-pill is-people">personnes détectées</span>
+                                {% endif %}
+                                <form action="{{ url_for('delete_image', image_id=image.id) }}" method="post" class="ms-auto">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">Supprimer</button>
+                                </form>
+                            </div>
                         </div>
                     </article>
                 </div>
             {% endfor %}
         </div>
     {% else %}
-        <div class="empty-panel">
+        <div class="empty-panel empty-panel--hero">
+            <div class="empty-illustration">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
             <h3 class="section-title h4 mb-2">Aucune image pour l'instant</h3>
-            <p class="muted-copy mb-0">
-                Envoyez votre premier asset pour alimenter le catalogue, générer des tags et tester la recherche par mots-clés.
+            <p class="muted-copy mb-4">
+                Envoyez votre première image pour remplir le catalogue, générer les tags et tester la recherche.
             </p>
+            <a href="#image" class="btn btn-smartdam">Commencer</a>
         </div>
     {% endif %}
 </section>
 
 <footer class="smartdam-footer mt-5 pt-3">
-    Flux Azure-first disponible : upload Blob, analyse Vision, tags structurés, description et persistance SQLite.
+    SmartDAM en mode Azure-first avec upload Blob, analyse Vision, tags structurés et persistance SQLite.
 </footer>
 {% endblock %}
