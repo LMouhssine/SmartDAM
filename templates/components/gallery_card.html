@@ -1,0 +1,82 @@
+<article class="gallery-card smart-surface h-100">
+    <div class="gallery-card__media-wrap">
+        <a href="{{ image.image_url }}" target="_blank" rel="noopener" class="gallery-card__media">
+            <img src="{{ image.image_url }}" alt="{{ image.original_filename }}">
+        </a>
+        <div class="gallery-card__overlay">
+            <span class="gallery-status {% if image.storage_backend == 'azure' %}is-azure{% else %}is-local{% endif %}">
+                {{ "Azure" if image.storage_backend == "azure" else "Local" }}
+            </span>
+            {% if image.has_people %}
+                <span class="gallery-status is-people">Personnes</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="gallery-card__body">
+        <div class="gallery-card__head">
+            <div class="min-w-0">
+                <h3 class="gallery-card__title text-truncate">{{ image.original_filename }}</h3>
+                <p class="gallery-card__meta mb-0">{{ image.created_at.strftime("%d/%m/%Y · %H:%M") }}</p>
+            </div>
+        </div>
+
+        <p class="gallery-card__description">
+            {{ image.description or "Aucune description disponible." }}
+        </p>
+
+        <div class="gallery-card__tags">
+            {% for tag in image.tag_list[:6] %}
+                <span class="tag-badge">{{ tag }}</span>
+            {% endfor %}
+            {% if image.tag_list|length > 6 %}
+                <span class="tag-badge tag-badge--more">+{{ image.tag_list|length - 6 }}</span>
+            {% endif %}
+        </div>
+
+        <div class="gallery-card__meta-row">
+            <span class="meta-pill">
+                {% if image.orientation == "landscape" %}
+                    Paysage
+                {% elif image.orientation == "portrait" %}
+                    Portrait
+                {% elif image.orientation == "square" %}
+                    Carré
+                {% else %}
+                    Orientation inconnue
+                {% endif %}
+            </span>
+            {% if image.image_width and image.image_height %}
+                <span class="meta-pill">{{ image.image_width }} × {{ image.image_height }}</span>
+            {% endif %}
+            <span class="meta-pill">{{ "Analyse Azure" if image.analysis_source == "azure" else "Analyse locale" }}</span>
+        </div>
+
+        <div class="gallery-card__actions">
+            <button
+                type="button"
+                class="btn btn-sm btn-dark"
+                data-bs-toggle="modal"
+                data-bs-target="#imageDetailModal"
+                data-image-title="{{ image.original_filename }}"
+                data-image-url="{{ image.image_url }}"
+                data-image-open-url="{{ image.image_url }}"
+                data-image-download-url="{{ url_for('download_image', image_id=image.id) }}"
+                data-image-description="{{ image.description or 'Aucune description disponible.' }}"
+                data-image-created="{{ image.created_at.strftime('%d/%m/%Y à %H:%M') }}"
+                data-image-tags="{{ image.tag_list|tojson|forceescape }}"
+                data-image-orientation="{% if image.orientation == 'landscape' %}Paysage{% elif image.orientation == 'portrait' %}Portrait{% elif image.orientation == 'square' %}Carré{% else %}Orientation inconnue{% endif %}"
+                data-image-dimensions="{% if image.image_width and image.image_height %}{{ image.image_width }} × {{ image.image_height }}{% else %}Dimensions inconnues{% endif %}"
+                data-image-storage="{{ 'Azure Blob Storage' if image.storage_backend == 'azure' else 'Stockage local' }}"
+                data-image-analysis="{{ 'Azure Vision' if image.analysis_source == 'azure' else 'Analyse locale' }}"
+                data-image-people="{{ 'Oui' if image.has_people else 'Non' }}"
+            >
+                Voir
+            </button>
+            <a href="{{ url_for('download_image', image_id=image.id) }}" class="btn btn-sm btn-outline-secondary">Télécharger</a>
+            <form action="{{ url_for('delete_image', image_id=image.id) }}" method="post" class="ms-auto">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Supprimer</button>
+            </form>
+        </div>
+    </div>
+</article>

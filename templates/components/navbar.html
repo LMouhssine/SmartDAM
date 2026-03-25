@@ -1,0 +1,50 @@
+<header class="topbar-shell">
+    <nav class="navbar navbar-expand-xl topbar">
+        <div class="container-xxl topbar__inner">
+            <div class="topbar__brand">
+                <button class="btn btn-topbar-icon d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#smartdamFilters" aria-controls="smartdamFilters">
+                    Menu
+                </button>
+                <a class="navbar-brand" href="{{ url_for('index') }}">
+                    <span class="brand-mark">SD</span>
+                    <span>
+                        <span class="brand-title">SmartDAM</span>
+                        <span class="brand-subtitle">Digital asset intelligence</span>
+                    </span>
+                </a>
+            </div>
+
+            <form class="topbar-search" action="{{ url_for('search') }}" method="get" data-loading-form data-loading-message="Recherche en cours...">
+                <label class="visually-hidden" for="global-search">Rechercher dans le catalogue</label>
+                <span class="topbar-search__icon">⌕</span>
+                <input
+                    id="global-search"
+                    name="q"
+                    type="search"
+                    class="form-control"
+                    placeholder="Rechercher par tags ou description"
+                    value="{{ search.params.query }}"
+                >
+                <input type="hidden" name="people" value="{{ search.params.people }}">
+                <input type="hidden" name="food_category" value="{{ search.params.food_category }}">
+                <input type="hidden" name="environment" value="{{ search.params.environment }}">
+                <input type="hidden" name="orientation" value="{{ search.params.orientation }}">
+                <input type="hidden" name="sort" value="{{ search.params.sort }}">
+                <button type="submit" class="btn btn-search-submit">Rechercher</button>
+            </form>
+
+            <div class="topbar__actions">
+                <div class="status-group d-none d-md-flex">
+                    <span class="status-pill">{{ storage_label }}</span>
+                    <span class="status-pill">{{ vision_label }}</span>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-theme-toggle" id="themeToggle" aria-pressed="false">
+                    Thème sombre
+                </button>
+                <button type="button" class="btn btn-smartdam" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                    Importer
+                </button>
+            </div>
+        </div>
+    </nav>
+</header>

@@ -1,0 +1,66 @@
+<div class="modal fade" id="imageDetailModal" tabindex="-1" aria-labelledby="imageDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <div class="modal-content smart-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <p class="eyebrow mb-1">Détail</p>
+                    <h2 class="modal-title h4 mb-0" id="imageDetailModalLabel">Aperçu de l'image</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <div class="row g-4 align-items-start">
+                    <div class="col-lg-7">
+                        <div class="detail-media">
+                            <img src="" alt="" id="detailImagePreview">
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="detail-panel">
+                            <p class="eyebrow mb-1">Asset</p>
+                            <h3 class="detail-title" id="detailImageTitle">Image</h3>
+                            <p class="muted-copy mb-4" id="detailImageDescription">Aucune description disponible.</p>
+
+                            <div class="detail-grid">
+                                <div class="detail-card">
+                                    <span class="detail-label">Créée le</span>
+                                    <strong id="detailImageCreated">-</strong>
+                                </div>
+                                <div class="detail-card">
+                                    <span class="detail-label">Orientation</span>
+                                    <strong id="detailImageOrientation">-</strong>
+                                </div>
+                                <div class="detail-card">
+                                    <span class="detail-label">Dimensions</span>
+                                    <strong id="detailImageDimensions">-</strong>
+                                </div>
+                                <div class="detail-card">
+                                    <span class="detail-label">Personnes</span>
+                                    <strong id="detailImagePeople">-</strong>
+                                </div>
+                                <div class="detail-card">
+                                    <span class="detail-label">Stockage</span>
+                                    <strong id="detailImageStorage">-</strong>
+                                </div>
+                                <div class="detail-card">
+                                    <span class="detail-label">Analyse</span>
+                                    <strong id="detailImageAnalysis">-</strong>
+                                </div>
+                            </div>
+
+                            <div class="detail-tags mt-4">
+                                <p class="eyebrow mb-2">Tags</p>
+                                <div class="tag-row" id="detailImageTags"></div>
+                            </div>
+
+                            <div class="detail-actions mt-4">
+                                <a href="#" class="btn btn-dark" target="_blank" rel="noopener" id="detailImageOpen">Ouvrir l'original</a>
+                                <a href="#" class="btn btn-outline-secondary" id="detailImageDownload">Télécharger</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

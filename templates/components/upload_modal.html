@@ -1,0 +1,51 @@
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content smart-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <p class="eyebrow mb-1">Importer</p>
+                    <h2 class="modal-title h4 mb-0" id="uploadModalLabel">Ajouter une image au catalogue</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <p class="muted-copy mb-4">
+                    Déposez un visuel ou parcourez vos fichiers. L'image sera envoyée, analysée, puis indexée pour la recherche.
+                </p>
+
+                <form action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data" id="uploadForm" data-loading-form data-loading-message="Import de l'image en cours...">
+                    <label class="upload-dropzone upload-dropzone--modal" for="uploadModalInput" id="uploadDropzone">
+                        <span class="upload-dropzone__icon">+</span>
+                        <span class="upload-dropzone__title">Glissez-déposez une image ici</span>
+                        <span class="upload-dropzone__hint">ou cliquez pour sélectionner un fichier PNG, JPG, WEBP, GIF</span>
+                        <input class="visually-hidden" type="file" id="uploadModalInput" name="image" accept="image/*" required>
+                    </label>
+
+                    <div class="upload-preview" id="uploadPreview" hidden>
+                        <div class="upload-preview__media">
+                            <img src="" alt="Aperçu du fichier sélectionné" id="uploadPreviewImage">
+                        </div>
+                        <div class="upload-preview__content">
+                            <p class="eyebrow mb-2">Aperçu</p>
+                            <h3 class="h5 mb-2" id="uploadPreviewName">Aucun fichier</h3>
+                            <p class="muted-copy mb-2" id="uploadPreviewMeta">Sélectionnez un fichier pour voir son aperçu.</p>
+                            <p class="upload-preview__note mb-0">Le visuel sera traité immédiatement après l'envoi.</p>
+                        </div>
+                    </div>
+
+                    <div class="upload-empty-note" id="uploadEmptyNote">
+                        <p class="mb-0">Aucun fichier sélectionné pour le moment.</p>
+                    </div>
+
+                    <div class="modal-footer border-0 px-0 pb-0 mt-4">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-smartdam" id="uploadSubmitButton">
+                            <span class="button-label">Envoyer l'image</span>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

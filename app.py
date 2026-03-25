@@ -112,6 +112,7 @@ def register_routes(app: Flask) -> None:
             "azure_storage_enabled": storage.azure_enabled,
             "azure_storage_active": storage.azure_primary_enabled,
             "azure_vision_enabled": vision.enabled,
+            "search": build_default_search_context(),
         }
 
     @app.get("/")
@@ -120,8 +121,8 @@ def register_routes(app: Flask) -> None:
         return render_gallery(
             images=images,
             search_context=build_default_search_context(),
-            page_title="Dernières images",
-            page_copy="Parcourez les derniers assets indexés, puis lancez une recherche plus précise avec les filtres.",
+            page_title="Bibliothèque visuelle",
+            page_copy="Un dashboard clair pour parcourir, filtrer et présenter vos assets enrichis par Azure.",
         )
 
     @app.get("/search")
@@ -144,7 +145,7 @@ def register_routes(app: Flask) -> None:
             images=images,
             search_context=search_context,
             page_title="Résultats de recherche",
-            page_copy="La requête combine les mots-clés sur les tags et la description, puis ajoute les filtres actifs.",
+            page_copy="Les résultats combinent mots-clés, filtres et tri pour retrouver rapidement les bons visuels.",
         )
 
     @app.post("/upload")
@@ -282,6 +283,25 @@ def register_routes(app: Flask) -> None:
             max_age=300,
         )
 
+    @app.get("/images/<int:image_id>/download")
+    def download_image(image_id: int):
+        image = ImageAsset.query.get_or_404(image_id)
+        storage = app.extensions["smartdam.storage"]
+
+        try:
+            data, content_type = storage.read(image)
+        except StorageError as exc:
+            app.logger.warning("Image download could not be loaded for image_id=%s: %s", image_id, exc)
+            abort(404)
+
+        return send_file(
+            BytesIO(data),
+            mimetype=content_type,
+            download_name=image.original_filename,
+            as_attachment=True,
+            max_age=0,
+        )
+
     @app.post("/images/<int:image_id>/delete")
     def delete_image(image_id: int):
         image = ImageAsset.query.get_or_404(image_id)
@@ -298,7 +318,7 @@ def register_routes(app: Flask) -> None:
             app.logger.exception("Image deletion failed for image_id=%s.", image_id)
             flash("L'image n'a pas pu être supprimée.", "danger")
 
-        return redirect(url_for("index"))
+        return redirect(request.referrer or url_for("index"))
 
 
 app = create_app()
