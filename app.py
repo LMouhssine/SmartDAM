@@ -7,8 +7,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from flask import Flask, abort, flash, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, flash, has_request_context, redirect, render_template, request, send_file, url_for
 from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from models import ImageAsset, db, ensure_image_asset_schema
@@ -21,6 +22,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "ico"}
+DEFAULT_MAX_CONTENT_LENGTH = 20 * 1024 * 1024
 
 
 def env_flag(name: str, default: bool = False) -> bool:
@@ -39,7 +41,7 @@ def create_app() -> Flask:
         SECRET_KEY=os.getenv("FLASK_SECRET_KEY", "smartdam-dev-secret"),
         SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'smartdam.db'}"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        MAX_CONTENT_LENGTH=int(os.getenv("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)),
+        MAX_CONTENT_LENGTH=int(os.getenv("MAX_CONTENT_LENGTH", DEFAULT_MAX_CONTENT_LENGTH)),
         THUMBNAIL_MAX_SIZE=int(os.getenv("THUMBNAIL_MAX_SIZE", 640)),
         UPLOAD_FOLDER=str(upload_folder),
         ALLOWED_EXTENSIONS=ALLOWED_EXTENSIONS,
@@ -95,10 +97,24 @@ def clean_redirect_target(value: str | None) -> str | None:
         return None
     parsed = urlparse(value)
     if parsed.scheme or parsed.netloc:
-        return None
+        if has_request_context() and parsed.netloc and parsed.netloc != request.host:
+            return None
+        path = parsed.path or ""
+        if not path.startswith("/"):
+            return None
+        return path + (f"?{parsed.query}" if parsed.query else "")
     if not value.startswith("/"):
         return None
     return value
+
+
+def format_size_label(size_bytes: int) -> str:
+    if size_bytes >= 1024 * 1024:
+        size_mb = size_bytes / (1024 * 1024)
+        if size_mb.is_integer():
+            return f"{int(size_mb)} Mo"
+        return f"{size_mb:.1f} Mo"
+    return f"{max(1, round(size_bytes / 1024))} Ko"
 
 
 def thumbnail_filename_for(original_filename: str, extension: str) -> str:
@@ -130,8 +146,25 @@ def register_routes(app: Flask) -> None:
             "azure_storage_enabled": storage.azure_enabled,
             "azure_storage_active": storage.azure_primary_enabled,
             "azure_vision_enabled": vision.enabled,
+            "max_upload_size_label": format_size_label(app.config["MAX_CONTENT_LENGTH"]),
             "search": build_default_search_context(),
         }
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def handle_request_entity_too_large(error: RequestEntityTooLarge):
+        max_upload_size = app.config["MAX_CONTENT_LENGTH"]
+        content_length = request.content_length or 0
+        app.logger.warning(
+            "Upload rejected because payload is too large (%s bytes received, limit=%s bytes).",
+            content_length,
+            max_upload_size,
+        )
+        flash(
+            f"Le fichier dépasse la taille maximale autorisée ({format_size_label(max_upload_size)}). "
+            "Réduisez sa taille puis réessayez.",
+            "warning",
+        )
+        return redirect(clean_redirect_target(request.referrer) or url_for("index"))
 
     @app.get("/")
     def index():

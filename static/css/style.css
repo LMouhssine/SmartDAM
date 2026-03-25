@@ -203,8 +203,14 @@ a {
 .gallery-card__description,
 .upload-preview__note,
 .upload-preview__meta,
-.empty-state__copy {
+.empty-state__copy,
+.upload-limit-note {
     color: var(--app-text-muted);
+}
+
+.upload-limit-note {
+    margin-bottom: 1rem;
+    font-size: 0.92rem;
 }
 
 .page-meta,

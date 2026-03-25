@@ -96,7 +96,7 @@ Copiez `.env.example` vers `.env`, puis adaptez les valeurs.
 ```env
 FLASK_SECRET_KEY=change-me
 DATABASE_URL=sqlite:///smartdam.db
-MAX_CONTENT_LENGTH=16777216
+MAX_CONTENT_LENGTH=20971520
 THUMBNAIL_MAX_SIZE=640
 UPLOAD_FOLDER=uploads
 LOG_LEVEL=INFO

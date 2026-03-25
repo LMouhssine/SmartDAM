@@ -12,11 +12,14 @@
                 <p class="modal-copy">
                     Déposez un visuel ou sélectionnez un fichier. L’image sera analysée puis ajoutée au catalogue.
                 </p>
+                <p class="upload-limit-note">
+                    Formats acceptés : PNG, JPG, WEBP, GIF. Taille maximale : {{ max_upload_size_label }}.
+                </p>
 
                 <form action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data" id="uploadForm" data-loading-form data-loading-message="Import de l'image en cours...">
                     <label class="upload-dropzone" for="uploadModalInput" id="uploadDropzone">
                         <span class="upload-dropzone__title">Glisser-déposer une image</span>
-                        <span class="upload-dropzone__hint">ou cliquer pour choisir un fichier PNG, JPG, WEBP ou GIF</span>
+                        <span class="upload-dropzone__hint">ou cliquer pour choisir un fichier image</span>
                         <input class="visually-hidden" type="file" id="uploadModalInput" name="image" accept="image/*" required>
                     </label>
 
