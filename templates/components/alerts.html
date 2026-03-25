@@ -3,10 +3,7 @@
         <section class="alerts-stack">
             {% for category, message in messages %}
                 <div class="alert smart-alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    <div>
-                        <p class="smart-alert__eyebrow mb-1">Notification</p>
-                        <div>{{ message }}</div>
-                    </div>
+                    <div>{{ message }}</div>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
                 </div>
             {% endfor %}

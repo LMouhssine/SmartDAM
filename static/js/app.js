@@ -1,8 +1,6 @@
 (() => {
-    const doc = document.documentElement;
     const loadingOverlay = document.getElementById("loadingOverlay");
     const loadingMessage = document.getElementById("loadingMessage");
-    const themeToggle = document.getElementById("themeToggle");
     const uploadInput = document.getElementById("uploadModalInput");
     const uploadPreview = document.getElementById("uploadPreview");
     const uploadPreviewImage = document.getElementById("uploadPreviewImage");
@@ -20,22 +18,6 @@
     const deleteModal = deleteModalElement ? bootstrap.Modal.getOrCreateInstance(deleteModalElement) : null;
 
     let previewObjectUrl = null;
-
-    const setTheme = (theme) => {
-        doc.setAttribute("data-bs-theme", theme);
-
-        if (themeToggle) {
-            const isDark = theme === "dark";
-            themeToggle.textContent = isDark ? "Thème clair" : "Thème sombre";
-            themeToggle.setAttribute("aria-pressed", String(isDark));
-        }
-    };
-
-    const initTheme = () => {
-        const storedTheme = window.localStorage.getItem("smartdam-theme");
-        const preferredDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        setTheme(storedTheme || (preferredDark ? "dark" : "light"));
-    };
 
     const showLoadingOverlay = (message) => {
         if (!loadingOverlay) {
@@ -340,15 +322,6 @@
         });
     };
 
-    if (themeToggle) {
-        themeToggle.addEventListener("click", () => {
-            const nextTheme = doc.getAttribute("data-bs-theme") === "dark" ? "light" : "dark";
-            window.localStorage.setItem("smartdam-theme", nextTheme);
-            setTheme(nextTheme);
-        });
-    }
-
-    initTheme();
     bindLoadingForms();
     bindUploadPreview();
     bindDetailModal();

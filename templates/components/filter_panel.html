@@ -1,0 +1,50 @@
+<form action="{{ url_for('search') }}" method="get" class="filter-form" data-loading-form data-loading-message="Application des filtres...">
+    <input type="hidden" name="q" value="{{ search.params.query }}">
+
+    <div class="row g-3">
+        <div class="col-12 col-md-6 col-xl-2">
+            <label class="form-label" for="filter-people">Personnes</label>
+            <select class="form-select" id="filter-people" name="people">
+                {% for option in search.people_options %}
+                    <option value="{{ option.value }}" {% if search.params.people == option.value %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2">
+            <label class="form-label" for="filter-food">Catégorie food</label>
+            <select class="form-select" id="filter-food" name="food_category">
+                {% for option in search.food_category_options %}
+                    <option value="{{ option.value }}" {% if search.params.food_category == option.value %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2">
+            <label class="form-label" for="filter-environment">Environnement</label>
+            <select class="form-select" id="filter-environment" name="environment">
+                {% for option in search.environment_options %}
+                    <option value="{{ option.value }}" {% if search.params.environment == option.value %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2">
+            <label class="form-label" for="filter-orientation">Orientation</label>
+            <select class="form-select" id="filter-orientation" name="orientation">
+                {% for option in search.orientation_options %}
+                    <option value="{{ option.value }}" {% if search.params.orientation == option.value %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2">
+            <label class="form-label" for="filter-sort">Tri</label>
+            <select class="form-select" id="filter-sort" name="sort">
+                {% for option in search.sort_options %}
+                    <option value="{{ option.value }}" {% if search.params.sort == option.value %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2 filter-form__actions">
+            <button type="submit" class="btn btn-primary w-100">Appliquer</button>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary w-100">Réinitialiser</a>
+        </div>
+    </div>
+</form>

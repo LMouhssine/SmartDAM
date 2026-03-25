@@ -3,105 +3,97 @@
 {% block title %}SmartDAM{% endblock %}
 
 {% block content %}
-<section class="page-header smart-surface">
-    <div class="page-header__copy">
-        <span class="eyebrow mb-2">SmartDAM Demo</span>
+<section class="page-intro">
+    <div>
+        <p class="section-label mb-2">Catalogue</p>
         <h1 class="page-title">{{ page_title }}</h1>
         <p class="page-copy mb-0">{{ page_copy }}</p>
     </div>
-
-    <div class="page-stats">
-        <div class="stat-card">
-            <span class="stat-card__value">{{ dashboard_stats.total_images }}</span>
-            <span class="stat-card__label">images indexées</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-card__value">{{ dashboard_stats.distinct_tags }}</span>
-            <span class="stat-card__label">tags distincts</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-card__value">{{ dashboard_stats.images_with_people }}</span>
-            <span class="stat-card__label">images avec personnes</span>
-        </div>
+    <div class="page-meta">
+        <span>{{ dashboard_stats.total_images }} images indexées</span>
+        <span>{{ dashboard_stats.distinct_tags }} tags distincts</span>
+        <span>{{ dashboard_stats.images_with_people }} avec personnes</span>
     </div>
 </section>
 
-{% if search.results_mode and (search.tokens or search.active_filter_count) %}
-    <section class="results-summary smart-surface">
-        <div class="results-summary__head">
-            <div>
-                <p class="eyebrow mb-1">Recherche active</p>
-                <h2 class="h5 mb-0">
-                    {{ result_count }} résultat{{ "" if result_count == 1 else "s" }}
-                    {% if search.params.query %}
-                        pour "{{ search.params.query }}"
-                    {% endif %}
-                </h2>
-            </div>
-            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">Réinitialiser</a>
-        </div>
+<section class="filter-panel">
+    <div class="filter-panel__header d-lg-none">
+        <button
+            class="btn btn-outline-secondary w-100"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#searchFilters"
+            aria-expanded="{% if search.active_filter_count %}true{% else %}false{% endif %}"
+            aria-controls="searchFilters"
+        >
+            Filtres{% if search.active_filter_count %} ({{ search.active_filter_count }}){% endif %}
+        </button>
+    </div>
+    <div class="collapse d-lg-block {% if search.active_filter_count %}show{% endif %}" id="searchFilters">
+        {% include "components/filter_panel.html" %}
+    </div>
+</section>
 
-        {% if search.tokens %}
-            <div class="results-summary__tokens">
-                <span class="search-mode-badge">Mode ANY</span>
-                {% for token in search.tokens %}
-                    <span class="tag-badge tag-badge--query">{{ token }}</span>
-                {% endfor %}
-            </div>
-        {% endif %}
-    </section>
+<section class="results-summary">
+    <div>
+        <p class="section-label mb-1">{% if search.results_mode %}Résultats{% else %}Galerie{% endif %}</p>
+        <h2 class="results-summary__title mb-0">
+            {{ result_count }} résultat{{ "" if result_count == 1 else "s" }}
+            {% if search.params.query %}
+                pour "{{ search.params.query }}"
+            {% endif %}
+        </h2>
+    </div>
+    {% if search.tokens or search.active_filter_count or search.results_mode %}
+        <div class="results-summary__meta">
+            {% if search.tokens %}
+                <span>{{ search.tokens|length }} mot{{ "" if search.tokens|length == 1 else "s" }}-clé{{ "" if search.tokens|length == 1 else "s" }}</span>
+            {% endif %}
+            {% if search.active_filter_count %}
+                <span>{{ search.active_filter_count }} filtre{{ "" if search.active_filter_count == 1 else "s" }}</span>
+            {% endif %}
+            {% if search.results_mode %}
+                <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Réinitialiser</a>
+            {% endif %}
+        </div>
+    {% endif %}
+</section>
+
+{% if search.tokens %}
+    <div class="active-tags">
+        {% for token in search.tokens %}
+            <span class="tag-badge">{{ token }}</span>
+        {% endfor %}
+    </div>
 {% endif %}
 
 <section class="gallery-section">
-    <div class="gallery-toolbar">
-        <div>
-            <p class="eyebrow mb-1">{% if search.results_mode %}Résultats{% else %}Galerie{% endif %}</p>
-            <h2 class="gallery-toolbar__title mb-0">
-                {% if search.results_mode %}
-                    Collection filtrée
-                {% else %}
-                    Derniers visuels ajoutés
-                {% endif %}
-            </h2>
-        </div>
-        <div class="gallery-toolbar__meta">
-            <span class="gallery-pill">{{ result_count }} visible{{ "" if result_count == 1 else "s" }}</span>
-            <span class="gallery-pill">{{ storage_label }}</span>
-            <span class="gallery-pill">{{ vision_label }}</span>
-        </div>
-    </div>
-
     {% if images %}
-        <div class="row g-4">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-3">
             {% for image in images %}
-                <div class="col-sm-6 col-xxl-4">
+                <div class="col">
                     {% include "components/gallery_card.html" %}
                 </div>
             {% endfor %}
         </div>
     {% else %}
-        <div class="empty-state smart-surface">
-            <div class="empty-state__art" aria-hidden="true">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
+        <div class="empty-state">
             {% if search.results_mode %}
                 <h3 class="empty-state__title">Aucun résultat trouvé</h3>
                 <p class="empty-state__copy">
-                    Essayez d'élargir votre requête, de retirer un filtre ou de revenir à la galerie complète.
+                    Essayez de modifier la recherche ou de retirer un filtre.
                 </p>
                 <div class="empty-state__actions">
                     <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Voir toute la galerie</a>
-                    <button type="button" class="btn btn-smartdam" data-bs-toggle="modal" data-bs-target="#uploadModal">Importer une image</button>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">Importer une image</button>
                 </div>
             {% else %}
                 <h3 class="empty-state__title">Aucune image dans le catalogue</h3>
                 <p class="empty-state__copy">
-                    Importez votre premier visuel ou chargez le jeu de démonstration pour alimenter la galerie.
+                    Importez une image ou chargez le jeu de démonstration pour commencer.
                 </p>
                 <div class="empty-state__actions">
-                    <button type="button" class="btn btn-smartdam" data-bs-toggle="modal" data-bs-target="#uploadModal">Commencer</button>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">Importer une image</button>
                 </div>
             {% endif %}
         </div>
