@@ -7,12 +7,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, send_file, url_for
-from sqlalchemy import or_
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.utils import secure_filename
 
 from models import ImageAsset, db, ensure_image_asset_schema
 from services.azure_vision import VisionError, build_vision_service
+from services.search import build_default_search_context, parse_search_params, search_images
 from services.storage import StorageError, build_storage_manager
 
 load_dotenv()
@@ -70,6 +71,36 @@ def allowed_file(filename: str) -> bool:
     return extension in ALLOWED_EXTENSIONS
 
 
+def extract_image_dimensions(file_bytes: bytes) -> tuple[int | None, int | None]:
+    try:
+        with Image.open(BytesIO(file_bytes)) as image:
+            return image.size
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("Le fichier envoyé n'est pas une image valide.") from exc
+
+
+def detect_orientation(width: int | None, height: int | None) -> str:
+    if not width or not height:
+        return ImageAsset.ORIENTATION_UNKNOWN
+    if width > height:
+        return ImageAsset.ORIENTATION_LANDSCAPE
+    if height > width:
+        return ImageAsset.ORIENTATION_PORTRAIT
+    return ImageAsset.ORIENTATION_SQUARE
+
+
+def render_gallery(*, images: list[ImageAsset], search_context: dict[str, object], page_title: str, page_copy: str):
+    return render_template(
+        "index.html",
+        images=images,
+        total_assets=ImageAsset.query.count(),
+        result_count=len(images),
+        search=search_context,
+        page_title=page_title,
+        page_copy=page_copy,
+    )
+
+
 def register_routes(app: Flask) -> None:
     @app.context_processor
     def inject_template_context() -> dict[str, object]:
@@ -85,30 +116,35 @@ def register_routes(app: Flask) -> None:
 
     @app.get("/")
     def index():
-        search_query = request.args.get("q", "").strip()
-        people_only = request.args.get("people_only") == "1"
-
-        image_query = ImageAsset.query.order_by(ImageAsset.created_at.desc())
-
-        if search_query:
-            like_query = f"%{search_query}%"
-            image_query = image_query.filter(
-                or_(
-                    ImageAsset.tags.ilike(like_query),
-                    ImageAsset.description.ilike(like_query),
-                    ImageAsset.original_filename.ilike(like_query),
-                )
-            )
-
-        if people_only:
-            image_query = image_query.filter(ImageAsset.has_people.is_(True))
-
-        images = image_query.all()
-        return render_template(
-            "index.html",
+        images = ImageAsset.query.order_by(ImageAsset.created_at.desc()).all()
+        return render_gallery(
             images=images,
-            search_query=search_query,
-            people_only=people_only,
+            search_context=build_default_search_context(),
+            page_title="Dernières images",
+            page_copy="Parcourez les derniers assets indexés, puis lancez une recherche plus précise avec les filtres.",
+        )
+
+    @app.get("/search")
+    def search():
+        params = parse_search_params(request.args)
+        image_query, search_context = search_images(params)
+        images = image_query.all()
+
+        app.logger.info(
+            "Search request executed with q='%s', people='%s', food='%s', environment='%s', orientation='%s', sort='%s'.",
+            params.query,
+            params.people,
+            params.food_category,
+            params.environment,
+            params.orientation,
+            params.sort,
+        )
+
+        return render_gallery(
+            images=images,
+            search_context=search_context,
+            page_title="Résultats de recherche",
+            page_copy="La requête combine les mots-clés sur les tags et la description, puis ajoute les filtres actifs.",
         )
 
     @app.post("/upload")
@@ -128,11 +164,24 @@ def register_routes(app: Flask) -> None:
             flash("Le fichier envoyé est vide.", "danger")
             return redirect(url_for("index"))
 
+        try:
+            image_width, image_height = extract_image_dimensions(file_bytes)
+        except ValueError:
+            flash("Le fichier envoyé n'est pas une image valide.", "danger")
+            return redirect(url_for("index"))
+
+        orientation = detect_orientation(image_width, image_height)
         storage = app.extensions["smartdam.storage"]
         vision = app.extensions["smartdam.vision"]
         stored_asset = None
 
-        app.logger.info("Starting upload flow for '%s'.", original_filename)
+        app.logger.info(
+            "Starting upload flow for '%s' (%sx%s, %s).",
+            original_filename,
+            image_width,
+            image_height,
+            orientation,
+        )
 
         try:
             stored_asset = storage.save(
@@ -156,6 +205,9 @@ def register_routes(app: Flask) -> None:
                 image_url=stored_asset.url or "",
                 description=analysis.description,
                 has_people=analysis.has_people,
+                image_width=image_width,
+                image_height=image_height,
+                orientation=orientation,
                 storage_backend=stored_asset.backend,
                 storage_path=stored_asset.path,
                 content_type=stored_asset.content_type,

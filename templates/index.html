@@ -8,24 +8,40 @@
     <div class="hero-orb hero-orb-b"></div>
     <div class="row g-4 align-items-center position-relative">
         <div class="col-lg-8">
-            <span class="status-pill mb-3">SmartDAM · Asset management visuel</span>
-            <h1 class="display-5 fw-bold mb-3 hero-title">Un catalogue d'images plus rapide à explorer, plus simple à filtrer, prêt pour Azure.</h1>
+            <span class="status-pill mb-3">SmartDAM · Recherche visuelle intelligente</span>
+            <h1 class="display-5 fw-bold mb-3 hero-title">
+                {{ page_title }}
+            </h1>
             <p class="lead muted-copy mb-4 hero-copy">
-                Chargez vos images, récupérez des tags et une description automatique, puis recherchez tout dans une galerie claire et lisible.
-                Le mode local reste disponible, mais le flux Azure-first est prêt pour la production.
+                {{ page_copy }}
             </p>
+
+            {% if search.results_mode and search.tokens %}
+                <div class="query-insight mb-4">
+                    <span class="query-mode">Mode ANY</span>
+                    <p class="muted-copy mb-2">
+                        Un asset est retenu dès qu'au moins un mot-clé correspond aux tags ou à la description.
+                    </p>
+                    <div class="tag-row">
+                        {% for token in search.tokens %}
+                            <span class="badge tag-badge tag-badge--query">{{ token }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
             <div class="hero-stats">
                 <div class="stat-card">
-                    <span class="stat-value">{{ images|length }}</span>
-                    <span class="stat-label">asset{{ "" if images|length == 1 else "s" }}</span>
+                    <span class="stat-value">{{ total_assets }}</span>
+                    <span class="stat-label">asset{{ "" if total_assets == 1 else "s" }} au catalogue</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">1</span>
-                    <span class="stat-label">upload flow</span>
+                    <span class="stat-value">{{ result_count }}</span>
+                    <span class="stat-label">résultat{{ "" if result_count == 1 else "s" }}</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">AI</span>
-                    <span class="stat-label">tagging</span>
+                    <span class="stat-value">{{ search.active_filter_count }}</span>
+                    <span class="stat-label">filtre{{ "" if search.active_filter_count == 1 else "s" }} actif{{ "" if search.active_filter_count == 1 else "s" }}</span>
                 </div>
             </div>
         </div>
@@ -50,13 +66,13 @@
                 </div>
                 <p class="muted-copy mb-0">
                     {% if azure_storage_active and azure_vision_enabled %}
-                        Les fichiers partent sur Azure Blob Storage puis sont enrichis par Azure Vision.
+                        Les images sont stockées sur Azure Blob Storage puis enrichies automatiquement par Azure Vision.
                     {% elif azure_storage_active %}
                         Le stockage Azure est actif, mais Azure Vision doit encore être configuré.
                     {% elif azure_vision_enabled %}
                         Azure Vision peut analyser les fichiers, mais le stockage reste local.
                     {% else %}
-                        Le mode local est actif avec un repli minimal pour les tags.
+                        Le mode local reste disponible pour les tests et le fallback de développement.
                     {% endif %}
                 </p>
             </div>
@@ -65,7 +81,7 @@
 </section>
 
 <section class="row g-4 mb-5">
-    <div class="col-lg-5">
+    <div class="col-lg-4">
         <div class="smartdam-card upload-panel p-4 h-100">
             <div class="section-heading mb-3">
                 <span class="section-step">01</span>
@@ -75,8 +91,7 @@
                 </div>
             </div>
             <p class="muted-copy mb-4">
-                Les envois sont traités en une seule étape. Quand Azure est activé, SmartDAM stocke le fichier, récupère l'URL publique du blob,
-                puis lance l'analyse pour enrichir la fiche.
+                L'upload conserve le flux Azure-first existant et enregistre aussi l'orientation de l'image pour les futurs filtres.
             </p>
             <form action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data" class="upload-form">
                 <label for="image" class="upload-dropzone">
@@ -89,42 +104,90 @@
             </form>
         </div>
     </div>
-    <div class="col-lg-7">
+    <div class="col-lg-8">
         <div class="smartdam-card search-panel p-4 h-100">
             <div class="section-heading mb-3">
                 <span class="section-step">02</span>
                 <div>
-                    <p class="eyebrow mb-1">Explorer</p>
-                    <h2 class="section-title h4 mb-0">Rechercher dans le catalogue</h2>
+                    <p class="eyebrow mb-1">Rechercher</p>
+                    <h2 class="section-title h4 mb-0">Mots-clés et filtres</h2>
                 </div>
             </div>
             <p class="muted-copy mb-4">
-                La recherche utilise le texte miroir des tags, la description et le nom du fichier. Les badges affichés dans les cartes
-                proviennent directement de la liste structurée `tags_json`.
+                La requête recherche des correspondances partielles dans les tags et la description, puis ajoute les filtres actifs avec une logique SQL dynamique.
             </p>
-            <form method="get" action="{{ url_for('index') }}" class="search-form">
-                <div class="search-box">
+            <form method="get" action="{{ url_for('search') }}" class="search-form">
+                <div class="search-box mb-3">
                     <span class="search-icon">⌕</span>
                     <input
                         type="text"
                         class="form-control form-control-lg search-input"
                         id="q"
                         name="q"
-                        placeholder="Exemple : plage, chien, portrait, food"
-                        value="{{ search_query }}"
+                        placeholder="Exemple : chicken grill, beach sunset, portrait"
+                        value="{{ search.params.query }}"
                     >
                 </div>
-                <div class="d-flex flex-wrap gap-3 align-items-center mt-3">
-                    <div class="form-check m-0">
-                        <input class="form-check-input" type="checkbox" value="1" id="people_only" name="people_only" {% if people_only %}checked{% endif %}>
-                        <label class="form-check-label" for="people_only">
-                            Personnes uniquement
-                        </label>
+
+                <div class="filter-grid">
+                    <div>
+                        <label class="form-label filter-label" for="people">Personnes</label>
+                        <select class="form-select" id="people" name="people">
+                            {% for option in search.people_options %}
+                                <option value="{{ option.value }}" {% if search.params.people == option.value %}selected{% endif %}>
+                                    {{ option.label }}
+                                </option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <div class="quick-filters">
-                        <button type="submit" class="btn btn-dark">Rechercher</button>
-                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Réinitialiser</a>
+                    <div>
+                        <label class="form-label filter-label" for="food_category">Catégorie food</label>
+                        <select class="form-select" id="food_category" name="food_category">
+                            {% for option in search.food_category_options %}
+                                <option value="{{ option.value }}" {% if search.params.food_category == option.value %}selected{% endif %}>
+                                    {{ option.label }}
+                                </option>
+                            {% endfor %}
+                        </select>
                     </div>
+                    <div>
+                        <label class="form-label filter-label" for="environment">Environnement</label>
+                        <select class="form-select" id="environment" name="environment">
+                            {% for option in search.environment_options %}
+                                <option value="{{ option.value }}" {% if search.params.environment == option.value %}selected{% endif %}>
+                                    {{ option.label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label filter-label" for="orientation">Orientation</label>
+                        <select class="form-select" id="orientation" name="orientation">
+                            {% for option in search.orientation_options %}
+                                <option value="{{ option.value }}" {% if search.params.orientation == option.value %}selected{% endif %}>
+                                    {{ option.label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label filter-label" for="sort">Tri</label>
+                        <select class="form-select" id="sort" name="sort">
+                            {% for option in search.sort_options %}
+                                <option value="{{ option.value }}" {% if search.params.sort == option.value %}selected{% endif %}>
+                                    {{ option.label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="search-actions mt-4">
+                    <button type="submit" class="btn btn-smartdam">Rechercher</button>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Réinitialiser</a>
+                    {% if search.has_search_criteria %}
+                        <span class="active-filters-note">{{ search.active_filter_count }} filtre{{ "" if search.active_filter_count == 1 else "s" }} actif{{ "" if search.active_filter_count == 1 else "s" }}</span>
+                    {% endif %}
                 </div>
             </form>
         </div>
@@ -134,10 +197,25 @@
 <section class="gallery-section">
     <div class="section-bar mb-3">
         <div>
-            <p class="eyebrow mb-1">Bibliothèque</p>
-            <h2 class="section-title h3 mb-0">Dernières images</h2>
+            <p class="eyebrow mb-1">{% if search.results_mode %}Résultats{% else %}Bibliothèque{% endif %}</p>
+            <h2 class="section-title h3 mb-0">
+                {% if search.results_mode %}
+                    {{ result_count }} résultat{{ "" if result_count == 1 else "s" }}
+                    {% if search.params.query %}
+                        pour "{{ search.params.query }}"
+                    {% endif %}
+                {% else %}
+                    Dernières images
+                {% endif %}
+            </h2>
         </div>
-        <span class="muted-copy">{{ images|length }} élément{{ "" if images|length == 1 else "s" }}</span>
+        <span class="muted-copy">
+            {% if search.results_mode %}
+                Recherche sur les tags et la description
+            {% else %}
+                {{ total_assets }} élément{{ "" if total_assets == 1 else "s" }} au total
+            {% endif %}
+        </span>
     </div>
 
     {% if images %}
@@ -150,7 +228,7 @@
                         </a>
                         <div class="p-4">
                             <div class="d-flex justify-content-between gap-3 align-items-start mb-3">
-                                <div>
+                                <div class="min-w-0">
                                     <h3 class="h5 mb-1 text-truncate">{{ image.original_filename }}</h3>
                                     <p class="muted-copy small mb-0">
                                         {{ image.created_at.strftime("%d/%m/%Y %H:%M") }}
@@ -165,10 +243,27 @@
                                 {{ image.description or "Aucune description disponible." }}
                             </p>
 
-                            <div class="tag-row mb-4">
+                            <div class="tag-row mb-3">
                                 {% for tag in image.tag_list %}
                                     <span class="badge tag-badge">{{ tag }}</span>
                                 {% endfor %}
+                            </div>
+
+                            <div class="meta-row mb-4">
+                                <span class="meta-pill">
+                                    {% if image.orientation == "landscape" %}
+                                        Paysage
+                                    {% elif image.orientation == "portrait" %}
+                                        Portrait
+                                    {% elif image.orientation == "square" %}
+                                        Carré
+                                    {% else %}
+                                        Orientation inconnue
+                                    {% endif %}
+                                </span>
+                                {% if image.image_width and image.image_height %}
+                                    <span class="meta-pill">{{ image.image_width }} × {{ image.image_height }}</span>
+                                {% endif %}
                             </div>
 
                             <div class="card-footer-actions">
@@ -194,16 +289,24 @@
                 <span></span>
                 <span></span>
             </div>
-            <h3 class="section-title h4 mb-2">Aucune image pour l'instant</h3>
-            <p class="muted-copy mb-4">
-                Envoyez votre première image pour remplir le catalogue, générer les tags et tester la recherche.
-            </p>
-            <a href="#image" class="btn btn-smartdam">Commencer</a>
+            {% if search.results_mode %}
+                <h3 class="section-title h4 mb-2">Aucun résultat trouvé</h3>
+                <p class="muted-copy mb-4">
+                    Essayez d'élargir les mots-clés, de retirer un filtre ou de revenir au tri par date récente.
+                </p>
+                <a href="{{ url_for('index') }}" class="btn btn-smartdam">Voir tout le catalogue</a>
+            {% else %}
+                <h3 class="section-title h4 mb-2">Aucune image pour l'instant</h3>
+                <p class="muted-copy mb-4">
+                    Envoyez votre première image pour remplir le catalogue, générer les tags et tester la recherche.
+                </p>
+                <a href="#image" class="btn btn-smartdam">Commencer</a>
+            {% endif %}
         </div>
     {% endif %}
 </section>
 
 <footer class="smartdam-footer mt-5 pt-3">
-    SmartDAM en mode Azure-first avec upload Blob, analyse Vision, tags structurés et persistance SQLite.
+    SmartDAM combine Azure Blob Storage, Azure Vision, tags structurés et recherche SQL simple mais extensible.
 </footer>
 {% endblock %}
