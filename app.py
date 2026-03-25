@@ -4,17 +4,18 @@ import logging
 import os
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, send_file, url_for
-from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.utils import secure_filename
 
 from models import ImageAsset, db, ensure_image_asset_schema
 from services.azure_vision import VisionError, build_vision_service
+from services.image_processing import InvalidImageError, process_image_upload
 from services.search import build_default_search_context, parse_search_params, search_images
-from services.storage import StorageError, build_storage_manager
+from services.storage import StorageError, StoredAsset, build_storage_manager
 
 load_dotenv()
 
@@ -39,6 +40,7 @@ def create_app() -> Flask:
         SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'smartdam.db'}"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         MAX_CONTENT_LENGTH=int(os.getenv("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)),
+        THUMBNAIL_MAX_SIZE=int(os.getenv("THUMBNAIL_MAX_SIZE", 640)),
         UPLOAD_FOLDER=str(upload_folder),
         ALLOWED_EXTENSIONS=ALLOWED_EXTENSIONS,
         LOG_LEVEL=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -71,22 +73,37 @@ def allowed_file(filename: str) -> bool:
     return extension in ALLOWED_EXTENSIONS
 
 
-def extract_image_dimensions(file_bytes: bytes) -> tuple[int | None, int | None]:
-    try:
-        with Image.open(BytesIO(file_bytes)) as image:
-            return image.size
-    except (UnidentifiedImageError, OSError) as exc:
-        raise ValueError("Le fichier envoyé n'est pas une image valide.") from exc
+def build_dashboard_stats() -> dict[str, int]:
+    all_images = ImageAsset.query.all()
+    distinct_tags = {
+        tag.strip().lower()
+        for image in all_images
+        for tag in image.tag_list
+        if tag.strip()
+    }
+    images_with_people = sum(1 for image in all_images if image.has_people)
+
+    return {
+        "total_images": len(all_images),
+        "distinct_tags": len(distinct_tags),
+        "images_with_people": images_with_people,
+    }
 
 
-def detect_orientation(width: int | None, height: int | None) -> str:
-    if not width or not height:
-        return ImageAsset.ORIENTATION_UNKNOWN
-    if width > height:
-        return ImageAsset.ORIENTATION_LANDSCAPE
-    if height > width:
-        return ImageAsset.ORIENTATION_PORTRAIT
-    return ImageAsset.ORIENTATION_SQUARE
+def clean_redirect_target(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme or parsed.netloc:
+        return None
+    if not value.startswith("/"):
+        return None
+    return value
+
+
+def thumbnail_filename_for(original_filename: str, extension: str) -> str:
+    stem = Path(original_filename).stem
+    return f"{stem}_thumb{extension}"
 
 
 def render_gallery(*, images: list[ImageAsset], search_context: dict[str, object], page_title: str, page_copy: str):
@@ -95,6 +112,7 @@ def render_gallery(*, images: list[ImageAsset], search_context: dict[str, object
         images=images,
         total_assets=ImageAsset.query.count(),
         result_count=len(images),
+        dashboard_stats=build_dashboard_stats(),
         search=search_context,
         page_title=page_title,
         page_copy=page_copy,
@@ -122,7 +140,7 @@ def register_routes(app: Flask) -> None:
             images=images,
             search_context=build_default_search_context(),
             page_title="Bibliothèque visuelle",
-            page_copy="Un dashboard clair pour parcourir, filtrer et présenter vos assets enrichis par Azure.",
+            page_copy="Une galerie prête pour la démo, optimisée pour parcourir, filtrer et présenter vos assets enrichis.",
         )
 
     @app.get("/search")
@@ -166,34 +184,45 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for("index"))
 
         try:
-            image_width, image_height = extract_image_dimensions(file_bytes)
-        except ValueError:
+            processed_image = process_image_upload(
+                file_bytes=file_bytes,
+                thumbnail_max_size=app.config["THUMBNAIL_MAX_SIZE"],
+            )
+        except InvalidImageError:
             flash("Le fichier envoyé n'est pas une image valide.", "danger")
             return redirect(url_for("index"))
 
-        orientation = detect_orientation(image_width, image_height)
         storage = app.extensions["smartdam.storage"]
         vision = app.extensions["smartdam.vision"]
-        stored_asset = None
+        stored_assets: list[StoredAsset] = []
 
         app.logger.info(
             "Starting upload flow for '%s' (%sx%s, %s).",
             original_filename,
-            image_width,
-            image_height,
-            orientation,
+            processed_image.width,
+            processed_image.height,
+            processed_image.orientation,
         )
 
         try:
-            stored_asset = storage.save(
+            original_asset = storage.save(
                 file_bytes=file_bytes,
                 original_filename=original_filename,
-                content_type=uploaded_file.mimetype,
+                content_type=processed_image.content_type,
             )
+            stored_assets.append(original_asset)
 
-            if stored_asset.backend == "azure":
+            thumbnail_asset = storage.save(
+                file_bytes=processed_image.thumbnail_bytes,
+                original_filename=thumbnail_filename_for(original_filename, processed_image.thumbnail_extension),
+                content_type=processed_image.thumbnail_content_type,
+            )
+            stored_assets.append(thumbnail_asset)
+            app.logger.info("Thumbnail generated and stored for '%s'.", original_filename)
+
+            if original_asset.backend == "azure":
                 analysis = vision.analyze_image_url(
-                    image_url=stored_asset.url,
+                    image_url=original_asset.url,
                     original_filename=original_filename,
                 )
                 app.logger.info("Azure Vision analysis succeeded for '%s'.", original_filename)
@@ -203,15 +232,18 @@ def register_routes(app: Flask) -> None:
 
             image = ImageAsset(
                 original_filename=original_filename,
-                image_url=stored_asset.url or "",
+                image_url=original_asset.url or "",
+                thumbnail_url=thumbnail_asset.url or "",
+                thumbnail_storage_path=thumbnail_asset.path,
+                thumbnail_content_type=thumbnail_asset.content_type,
                 description=analysis.description,
                 has_people=analysis.has_people,
-                image_width=image_width,
-                image_height=image_height,
-                orientation=orientation,
-                storage_backend=stored_asset.backend,
-                storage_path=stored_asset.path,
-                content_type=stored_asset.content_type,
+                image_width=processed_image.width,
+                image_height=processed_image.height,
+                orientation=processed_image.orientation,
+                storage_backend=original_asset.backend,
+                storage_path=original_asset.path,
+                content_type=original_asset.content_type,
                 analysis_source=analysis.source,
             )
             image.set_tags(analysis.tags)
@@ -219,13 +251,14 @@ def register_routes(app: Flask) -> None:
             db.session.add(image)
             db.session.flush()
 
-            if stored_asset.backend == "local":
+            if original_asset.backend == "local":
                 image.image_url = url_for("image_content", image_id=image.id)
+                image.thumbnail_url = url_for("image_thumbnail", image_id=image.id)
 
             db.session.commit()
             app.logger.info("Image '%s' saved in database with id=%s.", original_filename, image.id)
 
-            if stored_asset.backend == "azure":
+            if original_asset.backend == "azure":
                 flash("Image envoyée sur Azure Blob Storage et analysée avec Azure Vision.", "success")
             elif analysis.source == "azure":
                 flash("Image envoyée en local et analysée avec Azure Vision.", "success")
@@ -235,15 +268,11 @@ def register_routes(app: Flask) -> None:
             db.session.rollback()
             app.logger.exception("Upload flow failed for '%s'.", original_filename)
 
-            if stored_asset is not None:
+            for stored_asset in reversed(stored_assets):
                 try:
                     storage.delete_by_reference(stored_asset.backend, stored_asset.path)
-                    app.logger.info(
-                        "Stored asset '%s' cleaned up after a failed upload.",
-                        stored_asset.path,
-                    )
                 except StorageError:
-                    app.logger.exception("Stored asset cleanup failed for '%s'.", original_filename)
+                    app.logger.exception("Stored asset cleanup failed for '%s'.", stored_asset.path)
 
             if isinstance(exc, StorageError):
                 flash("Le stockage du fichier a échoué. Vérifiez la configuration Azure puis réessayez.", "danger")
@@ -255,7 +284,7 @@ def register_routes(app: Flask) -> None:
             db.session.rollback()
             app.logger.exception("Unexpected upload error for '%s'.", original_filename)
 
-            if stored_asset is not None:
+            for stored_asset in reversed(stored_assets):
                 try:
                     storage.delete_by_reference(stored_asset.backend, stored_asset.path)
                 except StorageError:
@@ -274,6 +303,32 @@ def register_routes(app: Flask) -> None:
             data, content_type = storage.read(image)
         except StorageError as exc:
             app.logger.warning("Image content could not be loaded for image_id=%s: %s", image_id, exc)
+            abort(404)
+
+        return send_file(
+            BytesIO(data),
+            mimetype=content_type,
+            download_name=image.original_filename,
+            max_age=300,
+        )
+
+    @app.get("/images/<int:image_id>/thumbnail")
+    def image_thumbnail(image_id: int):
+        image = ImageAsset.query.get_or_404(image_id)
+        storage = app.extensions["smartdam.storage"]
+
+        try:
+            if image.thumbnail_storage_path:
+                data, content_type = storage.read_by_reference(
+                    backend_name=image.storage_backend,
+                    storage_path=image.thumbnail_storage_path,
+                    content_type=image.thumbnail_content_type,
+                    filename=image.original_filename,
+                )
+            else:
+                data, content_type = storage.read(image)
+        except StorageError as exc:
+            app.logger.warning("Thumbnail could not be loaded for image_id=%s: %s", image_id, exc)
             abort(404)
 
         return send_file(
@@ -318,7 +373,9 @@ def register_routes(app: Flask) -> None:
             app.logger.exception("Image deletion failed for image_id=%s.", image_id)
             flash("L'image n'a pas pu être supprimée.", "danger")
 
-        return redirect(request.referrer or url_for("index"))
+        next_url = clean_redirect_target(request.form.get("next"))
+        referrer_url = clean_redirect_target(request.referrer)
+        return redirect(next_url or referrer_url or url_for("index"))
 
 
 app = create_app()

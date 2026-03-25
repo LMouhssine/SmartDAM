@@ -34,6 +34,9 @@ class ImageAsset(db.Model):
     image_width = db.Column(db.Integer, nullable=True)
     image_height = db.Column(db.Integer, nullable=True)
     orientation = db.Column(db.String(16), nullable=False, default=ORIENTATION_UNKNOWN)
+    thumbnail_url = db.Column(db.String(1024), nullable=True)
+    thumbnail_storage_path = db.Column(db.String(255), nullable=True)
+    thumbnail_content_type = db.Column(db.String(100), nullable=True)
     storage_backend = db.Column(db.String(32), nullable=False, default="local")
     storage_path = db.Column(db.String(255), nullable=False)
     content_type = db.Column(db.String(100), nullable=False, default="application/octet-stream")
@@ -92,6 +95,28 @@ class ImageAsset(db.Model):
             return json_tags
         return self.parse_tags_text(self.tags)
 
+    @property
+    def gallery_url(self) -> str:
+        return self.thumbnail_url or self.image_url
+
+    @property
+    def orientation_label(self) -> str:
+        if self.orientation == self.ORIENTATION_LANDSCAPE:
+            return "Paysage"
+        if self.orientation == self.ORIENTATION_PORTRAIT:
+            return "Portrait"
+        if self.orientation == self.ORIENTATION_SQUARE:
+            return "Carré"
+        return "Orientation inconnue"
+
+    @property
+    def analysis_label(self) -> str:
+        if self.analysis_source == "azure":
+            return "Azure Vision"
+        if self.analysis_source == "seed":
+            return "Seed démo"
+        return "Analyse locale"
+
 
 def ensure_image_asset_schema(logger) -> None:
     inspector = inspect(db.engine)
@@ -123,6 +148,18 @@ def ensure_image_asset_schema(logger) -> None:
                     "ALTER TABLE image_assets ADD COLUMN orientation VARCHAR(16) NOT NULL DEFAULT 'unknown'"
                 )
             )
+
+        if "thumbnail_url" not in columns:
+            logger.info("Adding thumbnail_url column to image_assets.")
+            connection.execute(text("ALTER TABLE image_assets ADD COLUMN thumbnail_url VARCHAR(1024)"))
+
+        if "thumbnail_storage_path" not in columns:
+            logger.info("Adding thumbnail_storage_path column to image_assets.")
+            connection.execute(text("ALTER TABLE image_assets ADD COLUMN thumbnail_storage_path VARCHAR(255)"))
+
+        if "thumbnail_content_type" not in columns:
+            logger.info("Adding thumbnail_content_type column to image_assets.")
+            connection.execute(text("ALTER TABLE image_assets ADD COLUMN thumbnail_content_type VARCHAR(100)"))
 
         rows = connection.execute(
             text("SELECT id, tags, tags_json, orientation FROM image_assets")

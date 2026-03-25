@@ -13,7 +13,11 @@
     const uploadForm = document.getElementById("uploadForm");
     const uploadModalElement = document.getElementById("uploadModal");
     const uploadSubmitButton = document.getElementById("uploadSubmitButton");
-    const detailModal = document.getElementById("imageDetailModal");
+    const detailModalElement = document.getElementById("imageDetailModal");
+    const deleteModalElement = document.getElementById("deleteImageModal");
+
+    const detailModal = detailModalElement ? bootstrap.Modal.getOrCreateInstance(detailModalElement) : null;
+    const deleteModal = deleteModalElement ? bootstrap.Modal.getOrCreateInstance(deleteModalElement) : null;
 
     let previewObjectUrl = null;
 
@@ -188,23 +192,53 @@
         }
     };
 
-    const updateDetailModal = (trigger) => {
-        if (!detailModal || !trigger) {
+    const populateDeleteModal = ({ deleteUrl, imageTitle }) => {
+        if (!deleteModalElement || !deleteUrl) {
             return;
         }
 
-        const detailTitle = detailModal.querySelector("#detailImageTitle");
-        const detailPreview = detailModal.querySelector("#detailImagePreview");
-        const detailDescription = detailModal.querySelector("#detailImageDescription");
-        const detailCreated = detailModal.querySelector("#detailImageCreated");
-        const detailOrientation = detailModal.querySelector("#detailImageOrientation");
-        const detailDimensions = detailModal.querySelector("#detailImageDimensions");
-        const detailPeople = detailModal.querySelector("#detailImagePeople");
-        const detailStorage = detailModal.querySelector("#detailImageStorage");
-        const detailAnalysis = detailModal.querySelector("#detailImageAnalysis");
-        const detailOpen = detailModal.querySelector("#detailImageOpen");
-        const detailDownload = detailModal.querySelector("#detailImageDownload");
-        const detailTags = detailModal.querySelector("#detailImageTags");
+        const deleteForm = deleteModalElement.querySelector("#deleteImageForm");
+        const deleteName = deleteModalElement.querySelector("#deleteImageName");
+        const deleteNextInput = deleteModalElement.querySelector("#deleteNextInput");
+
+        if (deleteForm) {
+            deleteForm.action = deleteUrl;
+        }
+        if (deleteName) {
+            deleteName.textContent = imageTitle || "image";
+        }
+        if (deleteNextInput) {
+            deleteNextInput.value = `${window.location.pathname}${window.location.search}`;
+        }
+    };
+
+    const openDeleteModal = ({ deleteUrl, imageTitle }) => {
+        if (!deleteModal) {
+            return;
+        }
+
+        populateDeleteModal({ deleteUrl, imageTitle });
+        deleteModal.show();
+    };
+
+    const updateDetailModal = (trigger) => {
+        if (!detailModalElement || !trigger) {
+            return;
+        }
+
+        const detailTitle = detailModalElement.querySelector("#detailImageTitle");
+        const detailPreview = detailModalElement.querySelector("#detailImagePreview");
+        const detailDescription = detailModalElement.querySelector("#detailImageDescription");
+        const detailCreated = detailModalElement.querySelector("#detailImageCreated");
+        const detailOrientation = detailModalElement.querySelector("#detailImageOrientation");
+        const detailDimensions = detailModalElement.querySelector("#detailImageDimensions");
+        const detailPeople = detailModalElement.querySelector("#detailImagePeople");
+        const detailStorage = detailModalElement.querySelector("#detailImageStorage");
+        const detailAnalysis = detailModalElement.querySelector("#detailImageAnalysis");
+        const detailOpen = detailModalElement.querySelector("#detailImageOpen");
+        const detailDownload = detailModalElement.querySelector("#detailImageDownload");
+        const detailTags = detailModalElement.querySelector("#detailImageTags");
+        const detailDelete = detailModalElement.querySelector("#detailImageDelete");
 
         if (detailTitle) {
             detailTitle.textContent = trigger.dataset.imageTitle || "Image";
@@ -235,10 +269,14 @@
             detailAnalysis.textContent = trigger.dataset.imageAnalysis || "-";
         }
         if (detailOpen) {
-            detailOpen.href = trigger.dataset.imageOpenUrl || "#";
+            detailOpen.href = trigger.dataset.imageUrl || "#";
         }
         if (detailDownload) {
             detailDownload.href = trigger.dataset.imageDownloadUrl || "#";
+        }
+        if (detailDelete) {
+            detailDelete.dataset.deleteUrl = trigger.dataset.imageDeleteUrl || "";
+            detailDelete.dataset.imageTitle = trigger.dataset.imageTitle || "image";
         }
         if (detailTags) {
             detailTags.innerHTML = "";
@@ -246,7 +284,7 @@
 
             try {
                 tags = JSON.parse(trigger.dataset.imageTags || "[]");
-            } catch (error) {
+            } catch (_error) {
                 tags = [];
             }
 
@@ -260,12 +298,45 @@
     };
 
     const bindDetailModal = () => {
-        if (!detailModal) {
+        if (!detailModalElement) {
             return;
         }
 
-        detailModal.addEventListener("show.bs.modal", (event) => {
+        detailModalElement.addEventListener("show.bs.modal", (event) => {
             updateDetailModal(event.relatedTarget);
+        });
+
+        const detailDelete = detailModalElement.querySelector("#detailImageDelete");
+        if (detailDelete) {
+            detailDelete.addEventListener("click", () => {
+                if (!detailDelete.dataset.deleteUrl) {
+                    return;
+                }
+
+                const payload = {
+                    deleteUrl: detailDelete.dataset.deleteUrl,
+                    imageTitle: detailDelete.dataset.imageTitle,
+                };
+
+                const handleHidden = () => {
+                    detailModalElement.removeEventListener("hidden.bs.modal", handleHidden);
+                    openDeleteModal(payload);
+                };
+
+                detailModalElement.addEventListener("hidden.bs.modal", handleHidden);
+                detailModal?.hide();
+            });
+        }
+    };
+
+    const bindDeleteTriggers = () => {
+        document.querySelectorAll("[data-delete-trigger]").forEach((button) => {
+            button.addEventListener("click", () => {
+                openDeleteModal({
+                    deleteUrl: button.dataset.deleteUrl,
+                    imageTitle: button.dataset.imageTitle,
+                });
+            });
         });
     };
 
@@ -281,4 +352,5 @@
     bindLoadingForms();
     bindUploadPreview();
     bindDetailModal();
+    bindDeleteTriggers();
 })();

@@ -33,12 +33,16 @@
                 <strong>{{ result_total }}</strong>
             </li>
             <li>
-                <span>Assets catalogués</span>
-                <strong>{{ total_assets|default(0) }}</strong>
+                <span>Images indexées</span>
+                <strong>{{ dashboard_stats.total_images|default(total_assets|default(0)) }}</strong>
             </li>
             <li>
-                <span>Filtres actifs</span>
-                <strong>{{ search.active_filter_count }}</strong>
+                <span>Tags distincts</span>
+                <strong>{{ dashboard_stats.distinct_tags|default(0) }}</strong>
+            </li>
+            <li>
+                <span>Avec personnes</span>
+                <strong>{{ dashboard_stats.images_with_people|default(0) }}</strong>
             </li>
         </ul>
 

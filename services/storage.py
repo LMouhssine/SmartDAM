@@ -177,9 +177,23 @@ class StorageManager:
         content_type = image.content_type or mimetypes.guess_type(image.original_filename)[0] or "application/octet-stream"
         return backend.read_bytes(image.storage_path), content_type
 
+    def read_by_reference(
+        self,
+        backend_name: str,
+        storage_path: str,
+        content_type: str | None = None,
+        filename: str = "asset",
+    ) -> tuple[bytes, str]:
+        backend = self._backend_for(backend_name)
+        resolved_content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        return backend.read_bytes(storage_path), resolved_content_type
+
     def delete(self, image: Any) -> None:
         backend = self._backend_for(image.storage_backend)
         backend.delete(image.storage_path)
+        thumbnail_path = getattr(image, "thumbnail_storage_path", None)
+        if thumbnail_path and thumbnail_path != image.storage_path:
+            backend.delete(thumbnail_path)
 
     def delete_by_reference(self, backend_name: str, storage_path: str) -> None:
         backend = self._backend_for(backend_name)

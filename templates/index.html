@@ -12,16 +12,16 @@
 
     <div class="page-stats">
         <div class="stat-card">
-            <span class="stat-card__value">{{ total_assets }}</span>
-            <span class="stat-card__label">assets indexés</span>
+            <span class="stat-card__value">{{ dashboard_stats.total_images }}</span>
+            <span class="stat-card__label">images indexées</span>
         </div>
         <div class="stat-card">
-            <span class="stat-card__value">{{ result_count }}</span>
-            <span class="stat-card__label">résultats visibles</span>
+            <span class="stat-card__value">{{ dashboard_stats.distinct_tags }}</span>
+            <span class="stat-card__label">tags distincts</span>
         </div>
         <div class="stat-card">
-            <span class="stat-card__value">{{ search.active_filter_count }}</span>
-            <span class="stat-card__label">filtres actifs</span>
+            <span class="stat-card__value">{{ dashboard_stats.images_with_people }}</span>
+            <span class="stat-card__label">images avec personnes</span>
         </div>
     </div>
 </section>
@@ -65,6 +65,7 @@
             </h2>
         </div>
         <div class="gallery-toolbar__meta">
+            <span class="gallery-pill">{{ result_count }} visible{{ "" if result_count == 1 else "s" }}</span>
             <span class="gallery-pill">{{ storage_label }}</span>
             <span class="gallery-pill">{{ vision_label }}</span>
         </div>
@@ -97,7 +98,7 @@
             {% else %}
                 <h3 class="empty-state__title">Aucune image dans le catalogue</h3>
                 <p class="empty-state__copy">
-                    Importez votre premier visuel pour alimenter la galerie et tester la recherche assistée par Azure.
+                    Importez votre premier visuel ou chargez le jeu de démonstration pour alimenter la galerie.
                 </p>
                 <div class="empty-state__actions">
                     <button type="button" class="btn btn-smartdam" data-bs-toggle="modal" data-bs-target="#uploadModal">Commencer</button>
@@ -111,4 +112,5 @@
 {% block modals %}
     {% include "components/upload_modal.html" %}
     {% include "components/image_detail_modal.html" %}
+    {% include "components/delete_confirm_modal.html" %}
 {% endblock %}

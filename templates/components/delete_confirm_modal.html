@@ -1,0 +1,30 @@
+<div class="modal fade" id="deleteImageModal" tabindex="-1" aria-labelledby="deleteImageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content smart-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <p class="eyebrow mb-1">Suppression</p>
+                    <h2 class="modal-title h4 mb-0" id="deleteImageModalLabel">Confirmer la suppression</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <p class="mb-2">Cette action supprimera l'image, sa miniature et son fichier de stockage associé.</p>
+                <p class="muted-copy mb-0">
+                    Fichier concerné :
+                    <strong id="deleteImageName">-</strong>
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <form method="post" id="deleteImageForm" class="w-100 d-flex flex-column flex-sm-row gap-2" data-loading-form data-loading-message="Suppression en cours...">
+                    <input type="hidden" name="next" id="deleteNextInput" value="">
+                    <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-outline-danger flex-fill" id="deleteConfirmButton">
+                        <span>Supprimer définitivement</span>
+                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

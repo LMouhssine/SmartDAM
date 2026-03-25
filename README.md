@@ -1,15 +1,62 @@
 # SmartDAM
 
-SmartDAM est une application Flask de gestion d'assets visuels. Elle permet de téléverser des images, de les stocker, de les analyser avec Azure Vision, puis de rechercher les résultats grâce aux tags et descriptions enregistrés.
+SmartDAM est une application Flask de gestion d'assets visuels. Elle permet d'importer des images, de les stocker localement ou dans Azure Blob Storage, de les analyser avec Azure Vision, puis de les retrouver dans une galerie filtrable pensée pour une démonstration produit.
 
-Le projet fonctionne toujours en mode local pour le développement, mais le flux principal est désormais :
+Le projet est désormais orienté **démo stable** :
 
-1. upload du fichier
-2. envoi vers Azure Blob Storage
-3. récupération de l'URL publique du blob
-4. analyse de l'image avec Azure Vision
-5. enregistrement des métadonnées dans SQLite
-6. affichage direct dans la galerie
+1. import d'image avec aperçu et indicateurs de chargement,
+2. analyse et enrichissement automatique,
+3. recherche avec filtres,
+4. téléchargement en pleine résolution,
+5. suppression confirmée,
+6. seed local reproductible pour préparer une démo en quelques secondes.
+
+## Architecture
+
+### Backend
+
+- `app.py`
+  Gère les routes Flask, l'upload, la suppression, le téléchargement, les miniatures locales et le rendu principal.
+- `models.py`
+  Définit le modèle `ImageAsset`, les tags structurés, l'orientation, ainsi que les colonnes de miniatures.
+- `services/storage.py`
+  Gère le stockage local ou Azure Blob Storage, y compris la lecture et la suppression de l'image originale et de sa miniature.
+- `services/azure_vision.py`
+  Gère l'analyse Azure Vision et le fallback local.
+- `services/search.py`
+  Construit la recherche par mots-clés, filtres et tri.
+- `services/image_processing.py`
+  Valide les images avec Pillow et génère une miniature stable pour la galerie.
+
+### Frontend
+
+- `templates/`
+  Templates Jinja, composants réutilisables, modals d'upload, détail image et confirmation de suppression.
+- `static/css/style.css`
+  Design dashboard Bootstrap + CSS personnalisé.
+- `static/js/app.js`
+  Theme toggle, aperçu avant upload, loading overlay, modal détail et confirmation de suppression.
+
+### Données de démonstration
+
+- `demo_assets/`
+  Images versionnées pour la démo.
+- `scripts/seed_demo.py`
+  Script reproductible pour charger ces assets dans le backend configuré.
+
+## Fonctionnalités principales
+
+- Import d'images avec validation réelle via Pillow
+- Génération de miniatures serveur pour accélérer la galerie
+- Stockage local ou Azure Blob Storage
+- Analyse Azure Vision :
+  tags, description, détection de personnes
+- Recherche par mots-clés sur tags et description
+- Filtres :
+  personnes, catégorie food, environnement, orientation
+- Téléchargement en pleine résolution
+- Suppression confirmée avec nettoyage du stockage
+- Interface démo moderne, responsive et orientée SaaS
 
 ## Structure du projet
 
@@ -18,90 +65,39 @@ SmartDAM/
 |-- app.py
 |-- models.py
 |-- requirements.txt
+|-- README.md
+|-- demo_assets/
+|-- scripts/
+|   `-- seed_demo.py
 |-- services/
 |   |-- __init__.py
 |   |-- azure_vision.py
+|   |-- image_processing.py
+|   |-- search.py
 |   `-- storage.py
 |-- static/
-|   `-- css/
-|       `-- style.css
+|   |-- css/
+|   |   `-- style.css
+|   `-- js/
+|       `-- app.js
 |-- templates/
 |   |-- base.html
-|   `-- index.html
+|   |-- index.html
+|   `-- components/
 `-- uploads/
 ```
-
-## Intégration Azure, étape par étape
-
-### 1. Azure Blob Storage
-
-`services/storage.py` gère désormais un mode Azure-first :
-
-- upload du fichier avec `BlobServiceClient`
-- définition du `content_type`
-- retour du chemin blob et de l'URL publique directe
-- suppression du blob en cas d'échec ultérieur du flux
-
-Quand `USE_AZURE_STORAGE=true`, SmartDAM n'utilise plus de repli local silencieux. Si Azure Blob Storage n'est pas disponible, l'upload échoue.
-
-### 2. Azure Vision
-
-`services/azure_vision.py` expose deux modes :
-
-- `analyze_image_url(...)` pour le flux Azure principal à partir d'une URL Blob publique
-- `analyze_image(...)` pour le mode local, avec fallback si Azure Vision n'est pas configuré
-
-Les données extraites comprennent :
-
-- les tags
-- la description
-- la présence éventuelle de personnes
-
-### 3. Base de données
-
-`models.py` stocke désormais :
-
-- `original_filename`
-- `image_url`
-- `description`
-- `tags` en texte miroir pour la recherche simple
-- `tags_json` en JSON sérialisé pour garder la liste structurée
-
-Une migration légère au démarrage ajoute `tags_json` si la colonne n'existe pas encore et backfill les anciennes lignes à partir de `tags`.
-
-### 4. Flux d'upload
-
-Dans `app.py`, le flux `POST /upload` suit maintenant cet ordre :
-
-1. validation du fichier
-2. upload Azure Blob si activé
-3. analyse Azure Vision par URL publique
-4. création de l'enregistrement SQL
-5. rollback complet en cas d'échec
-
-Si Azure Vision échoue après l'upload Blob, le blob est supprimé et aucun enregistrement n'est créé en base.
-
-### 5. Interface utilisateur
-
-L'interface affiche :
-
-- l'image
-- les tags structurés
-- la description
-- l'origine du stockage et de l'analyse
-
-La recherche continue de s'appuyer sur le texte stocké dans `tags`, `description` et `original_filename`.
 
 ## Variables d'environnement
 
 Copiez `.env.example` vers `.env`, puis adaptez les valeurs.
 
-### Base locale
+### Configuration locale
 
 ```env
 FLASK_SECRET_KEY=change-me
 DATABASE_URL=sqlite:///smartdam.db
 MAX_CONTENT_LENGTH=16777216
+THUMBNAIL_MAX_SIZE=640
 UPLOAD_FOLDER=uploads
 LOG_LEVEL=INFO
 ```
@@ -116,10 +112,9 @@ AZURE_STORAGE_CONTAINER=smartdam-images
 
 Important :
 
-- SmartDAM stocke l'URL publique directe du blob
-- le conteneur doit donc autoriser la lecture publique des blobs
-- si le conteneur est créé par l'application, SmartDAM tente de le créer avec `public_access="blob"`
-- si le conteneur existe déjà en privé, il faut activer la lecture publique côté Azure avant de tester l'affichage direct
+- SmartDAM stocke l'URL publique directe du blob pour l'image originale et sa miniature.
+- Le conteneur doit donc autoriser la lecture publique des blobs.
+- Si le conteneur existe déjà en privé, il faut activer cet accès côté Azure avant l'affichage direct.
 
 ### Azure Vision
 
@@ -129,7 +124,7 @@ VISION_KEY=your-azure-vision-key
 VISION_LANGUAGE=fr
 ```
 
-## Exécuter le projet
+## Installation
 
 ### 1. Créer un environnement virtuel
 
@@ -152,44 +147,83 @@ python app.py
 
 Ouvrez ensuite [http://127.0.0.1:5000](http://127.0.0.1:5000).
 
-Au premier démarrage, SmartDAM crée les tables SQLite nécessaires et applique une migration légère pour ajouter `tags_json` si la colonne manque encore.
+Au premier démarrage, SmartDAM crée les tables SQLite nécessaires et applique les migrations légères du modèle.
 
-## Configuration Azure minimale
+## Configuration Azure, étape par étape
 
-Pour tester le flux Azure de bout en bout, il faut :
+### 1. Blob Storage
 
-1. un compte Azure Storage avec un conteneur Blob lisible publiquement
-2. une ressource Azure Vision / Image Analysis avec `VISION_ENDPOINT` et `VISION_KEY`
-3. `USE_AZURE_STORAGE=true` dans `.env`
+1. Créez un compte Azure Storage.
+2. Créez un conteneur Blob.
+3. Activez la lecture publique au niveau blob.
+4. Copiez la connection string dans `AZURE_STORAGE_CONNECTION_STRING`.
 
-Quand ces trois éléments sont présents, le flux devient :
+### 2. Azure Vision
 
-1. upload du fichier vers Azure Blob Storage
-2. récupération de l'URL publique du blob
-3. analyse de cette URL via Azure Vision
-4. enregistrement en base de `image_url`, `description`, `tags` et `tags_json`
-5. affichage direct de l'image depuis Azure dans la galerie
+1. Créez une ressource Azure AI Vision / Image Analysis.
+2. Récupérez `VISION_ENDPOINT` et `VISION_KEY`.
+3. Ajoutez-les dans `.env`.
 
-## Logs et erreurs
+### 3. Activation
 
-SmartDAM journalise les étapes clés du flux :
+1. Passez `USE_AZURE_STORAGE=true`.
+2. Redémarrez l'application.
+3. Testez le parcours complet :
+   import, analyse, recherche, téléchargement.
 
-- démarrage d'upload
-- succès Azure Blob
-- succès Azure Vision
-- rollback et nettoyage d'un blob
-- erreurs de stockage
-- erreurs d'analyse
-- erreurs base de données
+## Préparer une démo
 
-Les messages techniques détaillés vont dans les logs Flask, tandis que l'utilisateur voit un message `flash` plus simple.
+### Seed des images de démonstration
 
-En mode Azure-first, il n'y a pas de repli silencieux si l'upload Blob échoue. Si l'analyse Vision échoue après l'upload, le blob fraîchement créé est supprimé pour éviter les fichiers orphelins.
+Le script suivant charge les images versionnées dans le backend actif et génère aussi leurs miniatures :
+
+```powershell
+python scripts\seed_demo.py
+```
+
+Le script est idempotent : si un fichier de démonstration existe déjà en base avec le même nom, il est ignoré.
+
+### Parcours de démonstration recommandé
+
+1. Lancez l'application.
+2. Exécutez `python scripts\seed_demo.py`.
+3. Ouvrez la galerie.
+4. Montrez les stats et les filtres.
+5. Ouvrez une image dans le modal détail.
+6. Téléchargez l'original.
+7. Testez une recherche par tags.
+8. Importez une nouvelle image.
+9. Montrez la suppression confirmée.
+
+## Qualité et sécurité de base
+
+- Validation d'extension côté backend
+- Validation réelle de l'image via Pillow avant stockage
+- Limite de taille via `MAX_CONTENT_LENGTH`
+- Nettoyage du blob/fichier en cas d'échec du flux
+- Suppression de la miniature et de l'original en même temps
+- Secrets Azure uniquement via variables d'environnement
+- Logs applicatifs sur upload, recherche, suppression et erreurs
+
+## Notes d'implémentation
+
+- La galerie utilise une miniature générée côté serveur quand elle existe.
+- Le modal détail et le téléchargement utilisent toujours l'image originale.
+- Les assets seedés utilisent des métadonnées stables pour une démo reproductible.
+- Le mode debug Flask est pratique en local, mais ne constitue pas un déploiement de production.
 
 ## Vérifications recommandées
 
-- Upload Azure réussi : l'image s'affiche depuis l'URL Blob et les métadonnées sont en base.
-- Échec Azure Blob : aucun enregistrement SQL n'est créé.
-- Échec Azure Vision : le blob fraîchement envoyé est supprimé.
-- Migration SQLite : `tags_json` est créé et backfill à partir de `tags`.
-- Recherche : les mots-clés continuent à matcher `tags`, `description` et `original_filename`.
+- `python -m compileall app.py models.py services scripts`
+- Vérifier `/`, `/search` et `/images/<id>/download`
+- Vérifier qu'une suppression retire aussi la miniature
+- Vérifier qu'un upload invalide est refusé
+- Vérifier le seed sur un dépôt fraîchement configuré
+
+## Limites connues
+
+- Pas d'authentification utilisateur
+- Pas de renommage d'image
+- Pas de favoris
+- Pas de voix Azure Speech-to-Text dans cette phase
+- Pas de pipeline de déploiement production

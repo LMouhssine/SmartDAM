@@ -1,7 +1,7 @@
 <article class="gallery-card smart-surface h-100">
     <div class="gallery-card__media-wrap">
         <a href="{{ image.image_url }}" target="_blank" rel="noopener" class="gallery-card__media">
-            <img src="{{ image.image_url }}" alt="{{ image.original_filename }}">
+            <img src="{{ image.gallery_url }}" alt="{{ image.original_filename }}" loading="lazy">
         </a>
         <div class="gallery-card__overlay">
             <span class="gallery-status {% if image.storage_backend == 'azure' %}is-azure{% else %}is-local{% endif %}">
@@ -26,30 +26,20 @@
         </p>
 
         <div class="gallery-card__tags">
-            {% for tag in image.tag_list[:6] %}
+            {% for tag in image.tag_list[:4] %}
                 <span class="tag-badge">{{ tag }}</span>
             {% endfor %}
-            {% if image.tag_list|length > 6 %}
-                <span class="tag-badge tag-badge--more">+{{ image.tag_list|length - 6 }}</span>
+            {% if image.tag_list|length > 4 %}
+                <span class="tag-badge tag-badge--more">+{{ image.tag_list|length - 4 }}</span>
             {% endif %}
         </div>
 
         <div class="gallery-card__meta-row">
-            <span class="meta-pill">
-                {% if image.orientation == "landscape" %}
-                    Paysage
-                {% elif image.orientation == "portrait" %}
-                    Portrait
-                {% elif image.orientation == "square" %}
-                    Carré
-                {% else %}
-                    Orientation inconnue
-                {% endif %}
-            </span>
+            <span class="meta-pill">{{ image.orientation_label }}</span>
             {% if image.image_width and image.image_height %}
                 <span class="meta-pill">{{ image.image_width }} × {{ image.image_height }}</span>
             {% endif %}
-            <span class="meta-pill">{{ "Analyse Azure" if image.analysis_source == "azure" else "Analyse locale" }}</span>
+            <span class="meta-pill">{{ image.analysis_label }}</span>
         </div>
 
         <div class="gallery-card__actions">
@@ -60,23 +50,29 @@
                 data-bs-target="#imageDetailModal"
                 data-image-title="{{ image.original_filename }}"
                 data-image-url="{{ image.image_url }}"
-                data-image-open-url="{{ image.image_url }}"
                 data-image-download-url="{{ url_for('download_image', image_id=image.id) }}"
+                data-image-delete-url="{{ url_for('delete_image', image_id=image.id) }}"
                 data-image-description="{{ image.description or 'Aucune description disponible.' }}"
                 data-image-created="{{ image.created_at.strftime('%d/%m/%Y à %H:%M') }}"
                 data-image-tags="{{ image.tag_list|tojson|forceescape }}"
-                data-image-orientation="{% if image.orientation == 'landscape' %}Paysage{% elif image.orientation == 'portrait' %}Portrait{% elif image.orientation == 'square' %}Carré{% else %}Orientation inconnue{% endif %}"
+                data-image-orientation="{{ image.orientation_label }}"
                 data-image-dimensions="{% if image.image_width and image.image_height %}{{ image.image_width }} × {{ image.image_height }}{% else %}Dimensions inconnues{% endif %}"
                 data-image-storage="{{ 'Azure Blob Storage' if image.storage_backend == 'azure' else 'Stockage local' }}"
-                data-image-analysis="{{ 'Azure Vision' if image.analysis_source == 'azure' else 'Analyse locale' }}"
+                data-image-analysis="{{ image.analysis_label }}"
                 data-image-people="{{ 'Oui' if image.has_people else 'Non' }}"
             >
                 Voir
             </button>
             <a href="{{ url_for('download_image', image_id=image.id) }}" class="btn btn-sm btn-outline-secondary">Télécharger</a>
-            <form action="{{ url_for('delete_image', image_id=image.id) }}" method="post" class="ms-auto">
-                <button type="submit" class="btn btn-sm btn-outline-danger">Supprimer</button>
-            </form>
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-danger ms-auto"
+                data-delete-trigger
+                data-delete-url="{{ url_for('delete_image', image_id=image.id) }}"
+                data-image-title="{{ image.original_filename }}"
+            >
+                Supprimer
+            </button>
         </div>
     </div>
 </article>
