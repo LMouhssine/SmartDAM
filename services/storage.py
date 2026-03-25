@@ -55,6 +55,9 @@ class LocalStorageService:
             raise StorageError(f"Local file not found: {file_path}")
         return file_path.read_bytes()
 
+    def resolve_path(self, storage_path: str) -> Path:
+        return self.upload_folder / storage_path
+
     def delete(self, storage_path: str) -> None:
         file_path = self.upload_folder / storage_path
         if file_path.exists():
@@ -198,6 +201,9 @@ class StorageManager:
     def delete_by_reference(self, backend_name: str, storage_path: str) -> None:
         backend = self._backend_for(backend_name)
         backend.delete(storage_path)
+
+    def local_path(self, storage_path: str) -> Path:
+        return self.local.resolve_path(storage_path)
 
     def _backend_for(self, backend_name: str):
         if backend_name == "azure":

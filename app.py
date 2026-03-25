@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,7 +14,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from models import ImageAsset, db, ensure_image_asset_schema
-from services.azure_vision import VisionError, build_vision_service
+from services.huggingface import AnalysisResult, build_huggingface_service
 from services.image_processing import InvalidImageError, process_image_upload
 from services.search import build_default_search_context, parse_search_params, search_images
 from services.storage import StorageError, StoredAsset, build_storage_manager
@@ -49,16 +50,24 @@ def create_app() -> Flask:
         USE_AZURE_STORAGE=env_flag("USE_AZURE_STORAGE", default=False),
         AZURE_STORAGE_CONNECTION_STRING=os.getenv("AZURE_STORAGE_CONNECTION_STRING", ""),
         AZURE_STORAGE_CONTAINER=os.getenv("AZURE_STORAGE_CONTAINER", "smartdam-images"),
-        VISION_ENDPOINT=os.getenv("VISION_ENDPOINT", ""),
-        VISION_KEY=os.getenv("VISION_KEY", ""),
-        VISION_LANGUAGE=os.getenv("VISION_LANGUAGE", "fr"),
+        HUGGINGFACE_API_TOKEN=os.getenv("HUGGINGFACE_API_TOKEN", ""),
+        HUGGINGFACE_CLASSIFICATION_MODEL=os.getenv(
+            "HUGGINGFACE_CLASSIFICATION_MODEL",
+            "google/vit-base-patch16-224",
+        ),
+        HUGGINGFACE_CAPTION_MODEL=os.getenv(
+            "HUGGINGFACE_CAPTION_MODEL",
+            "nlpconnect/vit-gpt2-image-captioning",
+        ),
+        HUGGINGFACE_TIMEOUT=int(os.getenv("HUGGINGFACE_TIMEOUT", 20)),
+        HUGGINGFACE_MAX_TAGS=int(os.getenv("HUGGINGFACE_MAX_TAGS", 8)),
     )
 
     app.logger.setLevel(getattr(logging, app.config["LOG_LEVEL"], logging.INFO))
 
     db.init_app(app)
     app.extensions["smartdam.storage"] = build_storage_manager(app.config, logger=app.logger)
-    app.extensions["smartdam.vision"] = build_vision_service(app.config, logger=app.logger)
+    app.extensions["smartdam.vision"] = build_huggingface_service(app.config, logger=app.logger)
 
     with app.app_context():
         db.create_all()
@@ -122,6 +131,29 @@ def thumbnail_filename_for(original_filename: str, extension: str) -> str:
     return f"{stem}_thumb{extension}"
 
 
+def analyze_saved_image(
+    *,
+    analysis_service,
+    storage_manager,
+    stored_asset: StoredAsset,
+    file_bytes: bytes,
+    original_filename: str,
+) -> AnalysisResult:
+    if stored_asset.backend == "local":
+        return analysis_service.analyze_image(storage_manager.local_path(stored_asset.path))
+
+    suffix = Path(original_filename).suffix or ".img"
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_file.write(file_bytes)
+            temp_path = Path(temp_file.name)
+        return analysis_service.analyze_image(temp_path)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
 def render_gallery(*, images: list[ImageAsset], search_context: dict[str, object], page_title: str, page_copy: str):
     return render_template(
         "index.html",
@@ -139,13 +171,13 @@ def register_routes(app: Flask) -> None:
     @app.context_processor
     def inject_template_context() -> dict[str, object]:
         storage = app.extensions["smartdam.storage"]
-        vision = app.extensions["smartdam.vision"]
+        analysis_service = app.extensions["smartdam.vision"]
         return {
             "storage_label": storage.default_backend_label,
-            "vision_label": vision.provider_label,
+            "vision_label": analysis_service.provider_label,
             "azure_storage_enabled": storage.azure_enabled,
             "azure_storage_active": storage.azure_primary_enabled,
-            "azure_vision_enabled": vision.enabled,
+            "analysis_enabled": analysis_service.enabled,
             "max_upload_size_label": format_size_label(app.config["MAX_CONTENT_LENGTH"]),
             "search": build_default_search_context(),
         }
@@ -226,7 +258,7 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for("index"))
 
         storage = app.extensions["smartdam.storage"]
-        vision = app.extensions["smartdam.vision"]
+        analysis_service = app.extensions["smartdam.vision"]
         stored_assets: list[StoredAsset] = []
 
         app.logger.info(
@@ -253,15 +285,20 @@ def register_routes(app: Flask) -> None:
             stored_assets.append(thumbnail_asset)
             app.logger.info("Thumbnail generated and stored for '%s'.", original_filename)
 
-            if original_asset.backend == "azure":
-                analysis = vision.analyze_image_url(
-                    image_url=original_asset.url,
-                    original_filename=original_filename,
-                )
-                app.logger.info("Azure Vision analysis succeeded for '%s'.", original_filename)
+            analysis = analyze_saved_image(
+                analysis_service=analysis_service,
+                storage_manager=storage,
+                stored_asset=original_asset,
+                file_bytes=file_bytes,
+                original_filename=original_filename,
+            )
+            if analysis.source == "huggingface":
+                app.logger.info("Hugging Face analysis completed for '%s'.", original_filename)
             else:
-                analysis = vision.analyze_image(file_bytes, original_filename)
-                app.logger.info("Local analysis completed for '%s'.", original_filename)
+                app.logger.warning(
+                    "Hugging Face analysis fallback used for '%s'. No tags or description were generated.",
+                    original_filename,
+                )
 
             image = ImageAsset(
                 original_filename=original_filename,
@@ -291,13 +328,11 @@ def register_routes(app: Flask) -> None:
             db.session.commit()
             app.logger.info("Image '%s' saved in database with id=%s.", original_filename, image.id)
 
-            if original_asset.backend == "azure":
-                flash("Image envoyée sur Azure Blob Storage et analysée avec Azure Vision.", "success")
-            elif analysis.source == "azure":
-                flash("Image envoyée en local et analysée avec Azure Vision.", "success")
+            if analysis.source == "huggingface":
+                flash("Image envoyée et analysée avec Hugging Face.", "success")
             else:
-                flash("Image envoyée. Des tags locaux ont été générés en repli.", "info")
-        except (StorageError, VisionError, SQLAlchemyError) as exc:
+                flash("Image envoyée, mais l'analyse Hugging Face n'a pas pu générer de tags.", "warning")
+        except (StorageError, SQLAlchemyError) as exc:
             db.session.rollback()
             app.logger.exception("Upload flow failed for '%s'.", original_filename)
 
@@ -308,9 +343,7 @@ def register_routes(app: Flask) -> None:
                     app.logger.exception("Stored asset cleanup failed for '%s'.", stored_asset.path)
 
             if isinstance(exc, StorageError):
-                flash("Le stockage du fichier a échoué. Vérifiez la configuration Azure puis réessayez.", "danger")
-            elif isinstance(exc, VisionError):
-                flash("L'analyse Azure Vision a échoué. Le fichier n'a pas été enregistré.", "danger")
+                flash("Le stockage du fichier a échoué. Vérifiez la configuration puis réessayez.", "danger")
             else:
                 flash("L'enregistrement en base de données a échoué. Réessayez.", "danger")
         except Exception:  # noqa: BLE001

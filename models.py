@@ -113,6 +113,10 @@ class ImageAsset(db.Model):
     def analysis_label(self) -> str:
         if self.analysis_source == "azure":
             return "Azure Vision"
+        if self.analysis_source == "huggingface":
+            return "Hugging Face"
+        if self.analysis_source == "fallback":
+            return "Analyse indisponible"
         if self.analysis_source == "seed":
             return "Seed démo"
         return "Analyse locale"
