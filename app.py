@@ -53,11 +53,15 @@ def create_app() -> Flask:
         HUGGINGFACE_API_TOKEN=os.getenv("HUGGINGFACE_API_TOKEN", ""),
         HUGGINGFACE_CLASSIFICATION_MODEL=os.getenv(
             "HUGGINGFACE_CLASSIFICATION_MODEL",
-            "google/vit-base-patch16-224",
+            "microsoft/resnet-50",
+        ),
+        HUGGINGFACE_DETECTION_MODEL=os.getenv(
+            "HUGGINGFACE_DETECTION_MODEL",
+            "facebook/detr-resnet-50",
         ),
         HUGGINGFACE_CAPTION_MODEL=os.getenv(
             "HUGGINGFACE_CAPTION_MODEL",
-            "nlpconnect/vit-gpt2-image-captioning",
+            "",
         ),
         HUGGINGFACE_TIMEOUT=int(os.getenv("HUGGINGFACE_TIMEOUT", 20)),
         HUGGINGFACE_MAX_TAGS=int(os.getenv("HUGGINGFACE_MAX_TAGS", 8)),

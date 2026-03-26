@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,12 +9,14 @@ from typing import Any
 
 import requests
 
-HF_API_BASE_URL = "https://api-inference.huggingface.co/models"
-DEFAULT_CLASSIFICATION_MODEL = "google/vit-base-patch16-224"
-DEFAULT_CAPTION_MODEL = "nlpconnect/vit-gpt2-image-captioning"
+HF_API_BASE_URL = "https://router.huggingface.co/hf-inference/models"
+DEFAULT_CLASSIFICATION_MODEL = "microsoft/resnet-50"
+DEFAULT_DETECTION_MODEL = "facebook/detr-resnet-50"
+DEFAULT_CAPTION_MODEL = ""
 DEFAULT_TIMEOUT = 20
 DEFAULT_MAX_TAGS = 8
-MIN_CLASSIFICATION_SCORE = 0.05
+MIN_CLASSIFICATION_SCORE = 0.03
+MIN_DETECTION_SCORE = 0.3
 IRRELEVANT_TAGS = {
     "image",
     "images",
@@ -23,6 +26,8 @@ IRRELEVANT_TAGS = {
     "illustration",
     "graphic",
     "art",
+    "object",
+    "objects",
 }
 CAPTION_STOPWORDS = {
     "a",
@@ -82,6 +87,7 @@ class HuggingFaceService:
         self,
         api_token: str,
         classification_model: str = DEFAULT_CLASSIFICATION_MODEL,
+        detection_model: str = DEFAULT_DETECTION_MODEL,
         caption_model: str = DEFAULT_CAPTION_MODEL,
         timeout: int = DEFAULT_TIMEOUT,
         max_tags: int = DEFAULT_MAX_TAGS,
@@ -89,7 +95,8 @@ class HuggingFaceService:
     ) -> None:
         self.api_token = api_token.strip()
         self.classification_model = classification_model.strip() or DEFAULT_CLASSIFICATION_MODEL
-        self.caption_model = caption_model.strip() or DEFAULT_CAPTION_MODEL
+        self.detection_model = detection_model.strip() or DEFAULT_DETECTION_MODEL
+        self.caption_model = caption_model.strip()
         self.timeout = max(5, int(timeout))
         self.max_tags = min(max(5, int(max_tags)), 10)
         self.logger = logger or logging.getLogger(__name__)
@@ -118,27 +125,40 @@ class HuggingFaceService:
             self.logger.warning("Image analysis skipped because the file is empty: %s", path)
             return self._fallback_result()
 
+        content_type = self._guess_content_type(path)
         description = ""
         tags: list[str] = []
+        detected_objects: list[str] = []
 
         if not self.enabled:
             return self._fallback_result()
 
-        # Classification produces the main labels; captioning complements the record with a short description.
+        # Classification and object detection are both available on the current Hugging Face router.
         try:
-            classification_payload = self._query_model(self.classification_model, image_bytes)
+            classification_payload = self._query_model(self.classification_model, image_bytes, content_type)
             tags = self._parse_classification_tags(classification_payload)
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Hugging Face classification failed for '%s': %s", path.name, exc)
 
         try:
-            caption_payload = self._query_model(self.caption_model, image_bytes)
-            description = self._parse_caption(caption_payload)
+            detection_payload = self._query_model(self.detection_model, image_bytes, content_type)
+            detected_objects = self._parse_detection_tags(detection_payload)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("Hugging Face object detection failed for '%s': %s", path.name, exc)
+
+        tags = self._merge_tags(detected_objects, tags)
+
+        try:
+            if self.caption_model:
+                caption_payload = self._query_model(self.caption_model, image_bytes, content_type)
+                description = self._parse_caption(caption_payload)
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Hugging Face captioning failed for '%s': %s", path.name, exc)
 
         if description:
             tags = self._merge_tags(tags, self._caption_keywords(description))
+        elif tags:
+            description = self._build_description(detected_objects, tags)
 
         has_people = self._detect_people(tags, description)
         source = "huggingface" if tags or description else "fallback"
@@ -149,28 +169,42 @@ class HuggingFaceService:
             source=source,
         )
 
-    def _query_model(self, model_id: str, image_bytes: bytes) -> Any:
+    def _query_model(self, model_id: str, image_bytes: bytes, content_type: str) -> Any:
+        if not model_id:
+            raise RuntimeError("No Hugging Face model configured for this task.")
+
         response = requests.post(
             f"{HF_API_BASE_URL}/{model_id}",
             headers={
                 "Authorization": f"Bearer {self.api_token}",
                 "Accept": "application/json",
-                "Content-Type": "application/octet-stream",
+                "Content-Type": content_type,
             },
             data=image_bytes,
             timeout=self.timeout,
         )
 
+        response_type = (response.headers.get("content-type") or "").lower()
+        response_preview = response.text.replace("\n", " ").strip()[:240]
+
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"Hugging Face model '{model_id}' returned HTTP {response.status_code}: "
+                f"{response_preview or 'empty response'}"
+            )
+
+        if "application/json" not in response_type:
+            raise RuntimeError(
+                f"Hugging Face model '{model_id}' returned unexpected content type '{response_type or 'unknown'}': "
+                f"{response_preview or 'empty response'}"
+            )
+
         try:
             payload = response.json()
         except ValueError as exc:
-            raise RuntimeError(f"Invalid JSON response from Hugging Face model '{model_id}'.") from exc
-
-        if response.status_code >= 400:
-            error_message = payload.get("error") if isinstance(payload, dict) else str(payload)
             raise RuntimeError(
-                f"Hugging Face model '{model_id}' returned HTTP {response.status_code}: {error_message}"
-            )
+                f"Invalid JSON response from Hugging Face model '{model_id}': {response_preview or 'empty response'}"
+            ) from exc
 
         if isinstance(payload, dict) and payload.get("error"):
             raise RuntimeError(f"Hugging Face model '{model_id}' returned an error: {payload['error']}")
@@ -202,6 +236,25 @@ class HuggingFaceService:
                 cleaned = self._clean_tag(chunk)
                 if cleaned:
                     tags.append(cleaned)
+
+        return self._limit_tags(tags)
+
+    def _parse_detection_tags(self, payload: Any) -> list[str]:
+        if not isinstance(payload, list):
+            raise RuntimeError("Unexpected object detection response shape.")
+
+        tags: list[str] = []
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+
+            score = float(item.get("score") or 0)
+            if score < MIN_DETECTION_SCORE:
+                continue
+
+            label = self._clean_tag(str(item.get("label") or ""))
+            if label:
+                tags.append(label)
 
         return self._limit_tags(tags)
 
@@ -239,6 +292,16 @@ class HuggingFaceService:
         words = set(re.split(r"[^a-zA-Z0-9]+", " ".join(tags + [description]).lower()))
         return bool(words & PEOPLE_KEYWORDS)
 
+    def _build_description(self, detected_objects: list[str], tags: list[str]) -> str:
+        priority_tags = detected_objects[:3] or tags[:3]
+        if not priority_tags:
+            return ""
+
+        if len(priority_tags) == 1:
+            return f"Detected element: {priority_tags[0]}."
+
+        return f"Detected elements: {', '.join(priority_tags[:-1])} and {priority_tags[-1]}."
+
     def _clean_tag(self, value: str) -> str:
         cleaned = value.strip().lower()
         cleaned = cleaned.replace("_", " ").replace("-", " ")
@@ -267,6 +330,11 @@ class HuggingFaceService:
         return self._limit_tags(primary_tags + secondary_tags)
 
     @staticmethod
+    def _guess_content_type(path: Path) -> str:
+        guessed, _ = mimetypes.guess_type(path.name)
+        return guessed or "image/jpeg"
+
+    @staticmethod
     def _fallback_result() -> AnalysisResult:
         return AnalysisResult(
             description="",
@@ -280,6 +348,7 @@ def build_huggingface_service(config: dict[str, object], logger: logging.Logger 
     return HuggingFaceService(
         api_token=str(config.get("HUGGINGFACE_API_TOKEN", "")),
         classification_model=str(config.get("HUGGINGFACE_CLASSIFICATION_MODEL", DEFAULT_CLASSIFICATION_MODEL)),
+        detection_model=str(config.get("HUGGINGFACE_DETECTION_MODEL", DEFAULT_DETECTION_MODEL)),
         caption_model=str(config.get("HUGGINGFACE_CAPTION_MODEL", DEFAULT_CAPTION_MODEL)),
         timeout=int(config.get("HUGGINGFACE_TIMEOUT", DEFAULT_TIMEOUT)),
         max_tags=int(config.get("HUGGINGFACE_MAX_TAGS", DEFAULT_MAX_TAGS)),
