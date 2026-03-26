@@ -1,62 +1,73 @@
 # SmartDAM
 
-SmartDAM est une application Flask de gestion d'assets visuels. Elle permet d'importer des images, de les stocker localement ou dans Azure Blob Storage, de les analyser avec Azure Vision, puis de les retrouver dans une galerie filtrable pensée pour une démonstration produit.
+SmartDAM est une application Flask de gestion d'assets visuels orientée photographie food et restauration. Elle permet d'importer des images, de les analyser automatiquement par IA (HuggingFace), et de les retrouver dans une galerie filtrable pensée pour une démonstration produit.
 
-Le projet est désormais orienté **démo stable** :
+## Fonctionnalités
 
-1. import d'image avec aperçu et indicateurs de chargement,
-2. analyse et enrichissement automatique,
-3. recherche avec filtres,
-4. téléchargement en pleine résolution,
-5. suppression confirmée,
-6. seed local reproductible pour préparer une démo en quelques secondes.
+### Gestion des images
+
+- Import multi-fichiers avec liste de progression par image (glisser-déposer ou sélection)
+- Validation réelle via Pillow avant stockage
+- Génération de miniatures côté serveur
+- Stockage local ou Azure Blob Storage
+- Téléchargement en pleine résolution
+- Suppression confirmée avec nettoyage du stockage
+
+### Analyse IA (HuggingFace)
+
+- Classification d'image avec `microsoft/resnet-50`
+- Détection d'objets avec `facebook/detr-resnet-50`
+- Tags générés automatiquement, traduits en français
+- Description générée à partir des tags détectés
+- Détection de personnes
+- Bouton "Réanalyser" sur chaque image (depuis le modal détail)
+- Affichage des modèles IA utilisés dans la modale d'import
+- Visualisation du processus d'analyse pendant l'upload (état par fichier : analyse en cours → tags obtenus)
+- Fallback local si HuggingFace est indisponible
+
+### Recherche et filtres
+
+- Recherche par mots-clés sur tags et description
+- **Recherche dynamique** : les résultats se mettent à jour en temps réel (400 ms de debounce sur le champ texte)
+- **Filtres dynamiques** : changement immédiat sans clic sur "Appliquer"
+- Filtres disponibles : personnes, catégorie food, environnement, orientation, favoris
+- Tri : date (récent/ancien), alphabétique
+- Surbrillance des termes recherchés dans les cartes de la galerie
+- Barre de tags fréquents en haut de la galerie (cliquables)
+
+### Favoris
+
+- Bouton étoile sur chaque carte de la galerie
+- Bouton étoile dans le modal détail (synchronisé avec la carte)
+- Filtre "Favoris uniquement" dans le panneau de filtres
+
+### Tags
+
+- Tags cliquables dans le modal détail (redirige vers la recherche)
+- Tags affichés en français
+- Tags fréquents affichés en barre de navigation rapide
 
 ## Architecture
 
 ### Backend
 
-- `app.py`
-  Gère les routes Flask, l'upload, la suppression, le téléchargement, les miniatures locales et le rendu principal.
-- `models.py`
-  Définit le modèle `ImageAsset`, les tags structurés, l'orientation, ainsi que les colonnes de miniatures.
-- `services/storage.py`
-  Gère le stockage local ou Azure Blob Storage, y compris la lecture et la suppression de l'image originale et de sa miniature.
-- `services/azure_vision.py`
-  Gère l'analyse Azure Vision et le fallback local.
-- `services/search.py`
-  Construit la recherche par mots-clés, filtres et tri.
-- `services/image_processing.py`
-  Valide les images avec Pillow et génère une miniature stable pour la galerie.
+- `app.py` — Routes Flask, upload synchrone et asynchrone (`/upload/async`), toggle favoris, réanalyse, filtre `highlight`, contexte de template global
+- `models.py` — Modèle `ImageAsset`, tags structurés, orientation, is_favorite ; migrations légères via `ensure_image_asset_schema()`
+- `services/huggingface.py` — Analyse HuggingFace (classification + détection), traduction des tags en français, détection de personnes, fallback
+- `services/search.py` — `SearchParams` (dataclass slots), `parse_search_params()`, `search_images()`, `_build_context()`
+- `services/storage.py` — Stockage local ou Azure Blob Storage
+- `services/image_processing.py` — Validation et génération de miniatures via Pillow
 
 ### Frontend
 
-- `templates/`
-  Templates Jinja, composants réutilisables, modals d'upload, détail image et confirmation de suppression.
-- `static/css/style.css`
-  Design dashboard Bootstrap + CSS personnalisé.
-- `static/js/app.js`
-  Theme toggle, aperçu avant upload, loading overlay, modal détail et confirmation de suppression.
+- `templates/` — Templates Jinja, composants réutilisables (galerie, modal upload, modal détail, filtres, navbar)
+- `static/css/style.css` — Design Bootstrap 5 + CSS personnalisé (thème clair/sombre, cartes, tags, upload, highlight)
+- `static/js/app.js` — IIFE vanilla JS : upload multi-fichiers, modal détail, favoris, réanalyse, recherche dynamique, filtres dynamiques
 
 ### Données de démonstration
 
-- `demo_assets/`
-  Images versionnées pour la démo.
-- `scripts/seed_demo.py`
-  Script reproductible pour charger ces assets dans le backend configuré.
-
-## Fonctionnalités principales
-
-- Import d'images avec validation réelle via Pillow
-- Génération de miniatures serveur pour accélérer la galerie
-- Stockage local ou Azure Blob Storage
-- Analyse Azure Vision :
-  tags, description, détection de personnes
-- Recherche par mots-clés sur tags et description
-- Filtres :
-  personnes, catégorie food, environnement, orientation
-- Téléchargement en pleine résolution
-- Suppression confirmée avec nettoyage du stockage
-- Interface démo moderne, responsive et orientée SaaS
+- `demo_assets/` — Images versionnées pour la démo
+- `scripts/seed_demo.py` — Script idempotent pour charger les assets de démo dans le backend actif
 
 ## Structure du projet
 
@@ -71,7 +82,7 @@ SmartDAM/
 |   `-- seed_demo.py
 |-- services/
 |   |-- __init__.py
-|   |-- azure_vision.py
+|   |-- huggingface.py
 |   |-- image_processing.py
 |   |-- search.py
 |   `-- storage.py
@@ -102,7 +113,7 @@ UPLOAD_FOLDER=uploads
 LOG_LEVEL=INFO
 ```
 
-### Azure Blob Storage
+### Azure Blob Storage (optionnel)
 
 ```env
 USE_AZURE_STORAGE=true
@@ -110,19 +121,17 @@ AZURE_STORAGE_CONNECTION_STRING=your-azure-storage-connection-string
 AZURE_STORAGE_CONTAINER=smartdam-images
 ```
 
-Important :
-
+Notes :
 - SmartDAM stocke l'URL publique directe du blob pour l'image originale et sa miniature.
-- Le conteneur doit donc autoriser la lecture publique des blobs.
-- Si le conteneur existe déjà en privé, il faut activer cet accès côté Azure avant l'affichage direct.
+- Le conteneur doit autoriser la lecture publique des blobs.
 
-### Azure Vision
+### HuggingFace (optionnel)
 
 ```env
-VISION_ENDPOINT=https://your-resource-name.cognitiveservices.azure.com
-VISION_KEY=your-azure-vision-key
-VISION_LANGUAGE=fr
+HUGGINGFACE_API_KEY=hf_your_token_here
 ```
+
+Sans clé, l'application fonctionne en mode dégradé (pas d'analyse IA, tags vides).
 
 ## Installation
 
@@ -149,33 +158,9 @@ Ouvrez ensuite [http://127.0.0.1:5000](http://127.0.0.1:5000).
 
 Au premier démarrage, SmartDAM crée les tables SQLite nécessaires et applique les migrations légères du modèle.
 
-## Configuration Azure, étape par étape
-
-### 1. Blob Storage
-
-1. Créez un compte Azure Storage.
-2. Créez un conteneur Blob.
-3. Activez la lecture publique au niveau blob.
-4. Copiez la connection string dans `AZURE_STORAGE_CONNECTION_STRING`.
-
-### 2. Azure Vision
-
-1. Créez une ressource Azure AI Vision / Image Analysis.
-2. Récupérez `VISION_ENDPOINT` et `VISION_KEY`.
-3. Ajoutez-les dans `.env`.
-
-### 3. Activation
-
-1. Passez `USE_AZURE_STORAGE=true`.
-2. Redémarrez l'application.
-3. Testez le parcours complet :
-   import, analyse, recherche, téléchargement.
-
 ## Préparer une démo
 
 ### Seed des images de démonstration
-
-Le script suivant charge les images versionnées dans le backend actif et génère aussi leurs miniatures :
 
 ```powershell
 python scripts\seed_demo.py
@@ -185,45 +170,31 @@ Le script est idempotent : si un fichier de démonstration existe déjà en base
 
 ### Parcours de démonstration recommandé
 
-1. Lancez l'application.
+1. Lancez l'application (`python app.py`).
 2. Exécutez `python scripts\seed_demo.py`.
-3. Ouvrez la galerie.
-4. Montrez les stats et les filtres.
-5. Ouvrez une image dans le modal détail.
-6. Téléchargez l'original.
-7. Testez une recherche par tags.
-8. Importez une nouvelle image.
-9. Montrez la suppression confirmée.
+3. Ouvrez la galerie — observez la barre de tags fréquents et les stats.
+4. Tapez dans la barre de recherche — les résultats se filtrent en temps réel.
+5. Changez un filtre (personnes, food, orientation) — les résultats s'actualisent immédiatement.
+6. Cliquez sur une image — observez les tags en français, la description et les modèles IA utilisés.
+7. Cliquez sur un tag dans le modal — la galerie se filtre sur ce tag.
+8. Cliquez sur "Réanalyser" — observez la mise à jour des tags et de la description.
+9. Ajoutez un favori via l'étoile, puis filtrez par "Favoris uniquement".
+10. Importez une nouvelle image — suivez la progression par fichier et l'affichage des tags obtenus.
 
-## Qualité et sécurité de base
+## Qualité et sécurité
 
 - Validation d'extension côté backend
 - Validation réelle de l'image via Pillow avant stockage
 - Limite de taille via `MAX_CONTENT_LENGTH`
 - Nettoyage du blob/fichier en cas d'échec du flux
 - Suppression de la miniature et de l'original en même temps
-- Secrets Azure uniquement via variables d'environnement
+- Secrets uniquement via variables d'environnement
 - Logs applicatifs sur upload, recherche, suppression et erreurs
-
-## Notes d'implémentation
-
-- La galerie utilise une miniature générée côté serveur quand elle existe.
-- Le modal détail et le téléchargement utilisent toujours l'image originale.
-- Les assets seedés utilisent des métadonnées stables pour une démo reproductible.
-- Le mode debug Flask est pratique en local, mais ne constitue pas un déploiement de production.
-
-## Vérifications recommandées
-
-- `python -m compileall app.py models.py services scripts`
-- Vérifier `/`, `/search` et `/images/<id>/download`
-- Vérifier qu'une suppression retire aussi la miniature
-- Vérifier qu'un upload invalide est refusé
-- Vérifier le seed sur un dépôt fraîchement configuré
+- Filtre `highlight` XSS-safe (`Markup.escape()` avant injection des balises `<mark>`)
 
 ## Limites connues
 
 - Pas d'authentification utilisateur
 - Pas de renommage d'image
-- Pas de favoris
-- Pas de voix Azure Speech-to-Text dans cette phase
 - Pas de pipeline de déploiement production
+- L'API HuggingFace peut imposer des limites de taux — l'upload multi-fichiers est séquentiel pour les éviter

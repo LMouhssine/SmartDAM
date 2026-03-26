@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(find /c/Users/mlakh/Desktop/Perso/SmartDAM -type f \\\\\\(-name *.env* -o -name requirements.txt -o -name *.json \\\\\\) ! -path */.venv/* ! -path */__pycache__/* ! -path */node_modules/*)"
-    ]
-  }
-}
