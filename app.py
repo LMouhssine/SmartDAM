@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import logging
 import os
+import re as _re
 import tempfile
+from collections import Counter
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, has_request_context, redirect, render_template, request, send_file, url_for
+from markupsafe import Markup
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
@@ -77,6 +80,20 @@ def create_app() -> Flask:
         db.create_all()
         ensure_image_asset_schema(app.logger)
 
+    @app.template_filter("highlight")
+    def highlight_filter(text: str, tokens: list[str]) -> Markup:
+        if not tokens or not text:
+            return Markup(Markup.escape(text))
+        escaped = str(Markup.escape(text))
+        pattern = "|".join(_re.escape(t) for t in tokens)
+        result = _re.sub(
+            f"({pattern})",
+            r'<mark class="search-highlight">\1</mark>',
+            escaped,
+            flags=_re.IGNORECASE,
+        )
+        return Markup(result)
+
     register_routes(app)
     return app
 
@@ -88,20 +105,20 @@ def allowed_file(filename: str) -> bool:
     return extension in ALLOWED_EXTENSIONS
 
 
-def build_dashboard_stats() -> dict[str, int]:
+def build_dashboard_stats() -> dict[str, object]:
     all_images = ImageAsset.query.all()
-    distinct_tags = {
-        tag.strip().lower()
-        for image in all_images
-        for tag in image.tag_list
-        if tag.strip()
-    }
+    tag_counter: Counter = Counter()
+    for image in all_images:
+        for tag in image.tag_list:
+            if tag.strip():
+                tag_counter[tag.strip().lower()] += 1
     images_with_people = sum(1 for image in all_images if image.has_people)
 
     return {
         "total_images": len(all_images),
-        "distinct_tags": len(distinct_tags),
+        "distinct_tags": len(tag_counter),
         "images_with_people": images_with_people,
+        "top_tags": tag_counter.most_common(10),
     }
 
 
@@ -184,6 +201,10 @@ def register_routes(app: Flask) -> None:
             "analysis_enabled": analysis_service.enabled,
             "max_upload_size_label": format_size_label(app.config["MAX_CONTENT_LENGTH"]),
             "search": build_default_search_context(),
+            "hf_models": {
+                "classification": analysis_service.classification_model,
+                "detection": analysis_service.detection_model,
+            } if analysis_service.enabled else {},
         }
 
     @app.errorhandler(RequestEntityTooLarge)
@@ -364,6 +385,113 @@ def register_routes(app: Flask) -> None:
 
         return redirect(url_for("index"))
 
+    @app.post("/upload/async")
+    def upload_image_async():
+        uploaded_file = request.files.get("image")
+        if not uploaded_file or not uploaded_file.filename:
+            return {"status": "error", "message": "Aucun fichier reçu."}, 400
+
+        original_filename = secure_filename(uploaded_file.filename)
+        if not original_filename or not allowed_file(original_filename):
+            return {"status": "error", "message": "Format non pris en charge."}, 400
+
+        file_bytes = uploaded_file.read()
+        if not file_bytes:
+            return {"status": "error", "message": "Le fichier envoyé est vide."}, 400
+
+        try:
+            processed_image = process_image_upload(
+                file_bytes=file_bytes,
+                thumbnail_max_size=app.config["THUMBNAIL_MAX_SIZE"],
+            )
+        except InvalidImageError as exc:
+            return {"status": "error", "message": str(exc)}, 400
+
+        storage = app.extensions["smartdam.storage"]
+        analysis_service = app.extensions["smartdam.vision"]
+        stored_assets: list[StoredAsset] = []
+
+        try:
+            original_asset = storage.save(
+                file_bytes=file_bytes,
+                original_filename=original_filename,
+                content_type=processed_image.content_type,
+            )
+            stored_assets.append(original_asset)
+
+            thumbnail_asset = storage.save(
+                file_bytes=processed_image.thumbnail_bytes,
+                original_filename=thumbnail_filename_for(original_filename, processed_image.thumbnail_extension),
+                content_type=processed_image.thumbnail_content_type,
+            )
+            stored_assets.append(thumbnail_asset)
+
+            analysis = analyze_saved_image(
+                analysis_service=analysis_service,
+                storage_manager=storage,
+                stored_asset=original_asset,
+                file_bytes=file_bytes,
+                original_filename=original_filename,
+            )
+
+            image = ImageAsset(
+                original_filename=original_filename,
+                image_url=original_asset.url or "",
+                thumbnail_url=thumbnail_asset.url or "",
+                thumbnail_storage_path=thumbnail_asset.path,
+                thumbnail_content_type=thumbnail_asset.content_type,
+                description=analysis.description,
+                has_people=analysis.has_people,
+                image_width=processed_image.width,
+                image_height=processed_image.height,
+                orientation=processed_image.orientation,
+                storage_backend=original_asset.backend,
+                storage_path=original_asset.path,
+                content_type=original_asset.content_type,
+                analysis_source=analysis.source,
+            )
+            image.set_tags(analysis.tags)
+            db.session.add(image)
+            db.session.flush()
+
+            if original_asset.backend == "local":
+                image.image_url = url_for("image_content", image_id=image.id)
+                image.thumbnail_url = url_for("image_thumbnail", image_id=image.id)
+
+            db.session.commit()
+            app.logger.info("Async upload saved '%s' with id=%s (source=%s).", original_filename, image.id, analysis.source)
+
+            return {
+                "status": "ok",
+                "id": image.id,
+                "filename": original_filename,
+                "tags": image.tag_list,
+                "description": image.description,
+                "analysis_source": image.analysis_source,
+                "analysis_label": image.analysis_label,
+                "thumbnail_url": image.thumbnail_url,
+            }
+
+        except (StorageError, SQLAlchemyError):
+            db.session.rollback()
+            for stored_asset in reversed(stored_assets):
+                try:
+                    storage.delete_by_reference(stored_asset.backend, stored_asset.path)
+                except StorageError:
+                    pass
+            app.logger.exception("Async upload failed for '%s'.", original_filename)
+            return {"status": "error", "message": "Erreur lors du stockage ou de l'enregistrement."}, 500
+
+        except Exception:  # noqa: BLE001
+            db.session.rollback()
+            for stored_asset in reversed(stored_assets):
+                try:
+                    storage.delete_by_reference(stored_asset.backend, stored_asset.path)
+                except StorageError:
+                    pass
+            app.logger.exception("Unexpected async upload error for '%s'.", original_filename)
+            return {"status": "error", "message": "Une erreur inattendue s'est produite."}, 500
+
     @app.get("/images/<int:image_id>/content")
     def image_content(image_id: int):
         image = ImageAsset.query.get_or_404(image_id)
@@ -446,6 +574,75 @@ def register_routes(app: Flask) -> None:
         next_url = clean_redirect_target(request.form.get("next"))
         referrer_url = clean_redirect_target(request.referrer)
         return redirect(next_url or referrer_url or url_for("index"))
+
+    @app.post("/images/<int:image_id>/favorite")
+    def toggle_favorite(image_id: int):
+        image = ImageAsset.query.get_or_404(image_id)
+        try:
+            image.is_favorite = not image.is_favorite
+            db.session.commit()
+            return {"id": image_id, "is_favorite": image.is_favorite}
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Favorite toggle failed for image_id=%s.", image_id)
+            return {"error": "Erreur lors de la mise à jour."}, 500
+
+    @app.post("/images/<int:image_id>/reanalyze")
+    def reanalyze_image(image_id: int):
+        image = ImageAsset.query.get_or_404(image_id)
+        storage = app.extensions["smartdam.storage"]
+        analysis_service = app.extensions["smartdam.vision"]
+
+        if not analysis_service.enabled:
+            return {"error": "L'analyse Hugging Face n'est pas configurée."}, 503
+
+        file_bytes = b""
+        if image.storage_backend != "local":
+            try:
+                file_bytes, _ = storage.read(image)
+            except StorageError as exc:
+                app.logger.warning("Re-analyze failed to read image_id=%s: %s", image_id, exc)
+                return {"error": "Impossible de lire le fichier image."}, 500
+
+        stored_asset = StoredAsset(
+            backend=image.storage_backend,
+            path=image.storage_path,
+            url=image.image_url,
+            content_type=image.content_type,
+        )
+
+        try:
+            analysis = analyze_saved_image(
+                analysis_service=analysis_service,
+                storage_manager=storage,
+                stored_asset=stored_asset,
+                file_bytes=file_bytes,
+                original_filename=image.original_filename,
+            )
+        except Exception:  # noqa: BLE001
+            app.logger.exception("Re-analysis failed for image_id=%s.", image_id)
+            return {"error": "L'analyse a échoué."}, 500
+
+        try:
+            image.description = analysis.description
+            image.has_people = analysis.has_people
+            image.analysis_source = analysis.source
+            image.set_tags(analysis.tags)
+            db.session.commit()
+            app.logger.info("Re-analysis saved for image_id=%s (source=%s).", image_id, analysis.source)
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("DB update failed for re-analyze image_id=%s.", image_id)
+            return {"error": "Erreur de sauvegarde en base."}, 500
+
+        return {
+            "id": image_id,
+            "description": image.description,
+            "tags": image.tag_list,
+            "has_people": image.has_people,
+            "analysis_source": image.analysis_source,
+            "analysis_label": image.analysis_label,
+        }
 
 
 app = create_app()

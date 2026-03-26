@@ -72,6 +72,125 @@ PEOPLE_KEYWORDS = {
     "woman",
     "women",
 }
+TAG_FR_TRANSLATIONS: dict[str, str] = {
+    # ── COCO / DETR detection classes ─────────────────────────────────────
+    "person": "personne",
+    "bicycle": "vélo",
+    "car": "voiture",
+    "motorcycle": "moto",
+    "bus": "bus",
+    "truck": "camion",
+    "bottle": "bouteille",
+    "wine glass": "verre à vin",
+    "cup": "tasse",
+    "fork": "fourchette",
+    "knife": "couteau",
+    "spoon": "cuillère",
+    "bowl": "bol",
+    "banana": "banane",
+    "apple": "pomme",
+    "sandwich": "sandwich",
+    "orange": "orange",
+    "broccoli": "brocoli",
+    "carrot": "carotte",
+    "hot dog": "hot-dog",
+    "pizza": "pizza",
+    "donut": "beignet",
+    "cake": "gâteau",
+    "chair": "chaise",
+    "dining table": "table",
+    "oven": "four",
+    "toaster": "grille-pain",
+    "sink": "évier",
+    "refrigerator": "réfrigérateur",
+    "microwave": "micro-ondes",
+    "scissors": "ciseaux",
+    "vase": "vase",
+    "potted plant": "plante en pot",
+    "couch": "canapé",
+    "bed": "lit",
+    "toilet": "toilettes",
+    "wine bottle": "bouteille de vin",
+    # ── ResNet-50 / ImageNet food & kitchen ───────────────────────────────
+    "bakery": "boulangerie",
+    "bread": "pain",
+    "baguette": "baguette",
+    "croissant": "croissant",
+    "cheese": "fromage",
+    "butter": "beurre",
+    "egg": "œuf",
+    "eggs": "œufs",
+    "meat": "viande",
+    "chicken": "poulet",
+    "beef": "bœuf",
+    "steak": "steak",
+    "pork": "porc",
+    "lamb": "agneau",
+    "fish": "poisson",
+    "seafood": "fruits de mer",
+    "shrimp": "crevette",
+    "salad": "salade",
+    "soup": "soupe",
+    "pasta": "pâtes",
+    "rice": "riz",
+    "burger": "burger",
+    "fries": "frites",
+    "dessert": "dessert",
+    "chocolate": "chocolat",
+    "ice cream": "glace",
+    "cookie": "biscuit",
+    "pastry": "pâtisserie",
+    "tart": "tarte",
+    "fruit": "fruit",
+    "vegetable": "légume",
+    "tomato": "tomate",
+    "onion": "oignon",
+    "garlic": "ail",
+    "mushroom": "champignon",
+    "avocado": "avocat",
+    "strawberry": "fraise",
+    "lemon": "citron",
+    "grape": "raisin",
+    "coffee": "café",
+    "tea": "thé",
+    "juice": "jus",
+    "cocktail": "cocktail",
+    "beer": "bière",
+    "wine": "vin",
+    "drink": "boisson",
+    "beverage": "boisson",
+    # ── Kitchen & environment ─────────────────────────────────────────────
+    "kitchen": "cuisine",
+    "plate": "assiette",
+    "dish": "plat",
+    "meal": "repas",
+    "food": "aliment",
+    "cooking": "cuisine",
+    "restaurant": "restaurant",
+    "table": "table",
+    "counter": "comptoir",
+    "cutting board": "planche à découper",
+    "pan": "poêle",
+    "pot": "casserole",
+    "wooden spoon": "cuillère en bois",
+    "spatula": "spatule",
+    "bowl of food": "bol de nourriture",
+    # ── People & portrait ─────────────────────────────────────────────────
+    "man": "homme",
+    "woman": "femme",
+    "boy": "garçon",
+    "girl": "fille",
+    "child": "enfant",
+    "children": "enfants",
+    "people": "personnes",
+    "crowd": "foule",
+    "face": "visage",
+    "portrait": "portrait",
+    "group": "groupe",
+    "chef": "chef cuisinier",
+    "cook": "cuisinier",
+    "waiter": "serveur",
+}
 
 
 @dataclass(slots=True)
@@ -157,10 +276,15 @@ class HuggingFaceService:
 
         if description:
             tags = self._merge_tags(tags, self._caption_keywords(description))
-        elif tags:
-            description = self._build_description(detected_objects, tags)
 
+        # People detection must run on English tags (before translation)
         has_people = self._detect_people(tags, description)
+        # Translate tags to French
+        tags = [self._translate_tag(t) for t in tags]
+        # Build French description if no caption was generated
+        if not description and tags:
+            description = self._build_description(tags)
+
         source = "huggingface" if tags or description else "fallback"
         return AnalysisResult(
             description=description,
@@ -292,15 +416,19 @@ class HuggingFaceService:
         words = set(re.split(r"[^a-zA-Z0-9]+", " ".join(tags + [description]).lower()))
         return bool(words & PEOPLE_KEYWORDS)
 
-    def _build_description(self, detected_objects: list[str], tags: list[str]) -> str:
-        priority_tags = detected_objects[:3] or tags[:3]
+    def _build_description(self, tags: list[str]) -> str:
+        priority_tags = tags[:3]
         if not priority_tags:
             return ""
 
         if len(priority_tags) == 1:
-            return f"Detected element: {priority_tags[0]}."
+            return f"Élément détecté : {priority_tags[0]}."
 
-        return f"Detected elements: {', '.join(priority_tags[:-1])} and {priority_tags[-1]}."
+        return f"Éléments détectés : {', '.join(priority_tags[:-1])} et {priority_tags[-1]}."
+
+    @staticmethod
+    def _translate_tag(tag: str) -> str:
+        return TAG_FR_TRANSLATIONS.get(tag, tag)
 
     def _clean_tag(self, value: str) -> str:
         cleaned = value.strip().lower()

@@ -42,6 +42,7 @@ class ImageAsset(db.Model):
     content_type = db.Column(db.String(100), nullable=False, default="application/octet-stream")
     analysis_source = db.Column(db.String(32), nullable=False, default="local")
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    is_favorite = db.Column(db.Boolean, nullable=False, default=False)
 
     @staticmethod
     def normalize_tags(values: Iterable[object]) -> list[str]:
@@ -164,6 +165,10 @@ def ensure_image_asset_schema(logger) -> None:
         if "thumbnail_content_type" not in columns:
             logger.info("Adding thumbnail_content_type column to image_assets.")
             connection.execute(text("ALTER TABLE image_assets ADD COLUMN thumbnail_content_type VARCHAR(100)"))
+
+        if "is_favorite" not in columns:
+            logger.info("Adding is_favorite column to image_assets.")
+            connection.execute(text("ALTER TABLE image_assets ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"))
 
         rows = connection.execute(
             text("SELECT id, tags, tags_json, orientation FROM image_assets")

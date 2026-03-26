@@ -70,6 +70,7 @@ class SearchParams:
     environment: str = ""
     orientation: str = ""
     sort: str = "recent"
+    favorites: bool = False
 
 
 def parse_search_params(args: Mapping[str, str]) -> SearchParams:
@@ -79,6 +80,7 @@ def parse_search_params(args: Mapping[str, str]) -> SearchParams:
     raw_environment = (args.get("environment") or "").strip().lower()
     raw_orientation = (args.get("orientation") or "").strip().lower()
     raw_sort = (args.get("sort") or "recent").strip().lower()
+    raw_favorites = (args.get("favorites") or "").strip().lower()
 
     return SearchParams(
         query=raw_query,
@@ -87,6 +89,7 @@ def parse_search_params(args: Mapping[str, str]) -> SearchParams:
         environment=raw_environment if raw_environment in ENVIRONMENT_TERMS else "",
         orientation=raw_orientation if raw_orientation in ImageAsset.ORIENTATION_VALUES else "",
         sort=raw_sort if raw_sort in SORT_VALUES else "recent",
+        favorites=raw_favorites in {"1", "true", "yes"},
     )
 
 
@@ -117,6 +120,9 @@ def search_images(params: SearchParams):
     if params.orientation:
         query = query.filter(ImageAsset.orientation == params.orientation)
 
+    if params.favorites:
+        query = query.filter(ImageAsset.is_favorite.is_(True))
+
     if params.sort == "relevant" and keyword_clauses:
         relevance_score = _build_relevance_score(keyword_clauses)
         query = query.order_by(relevance_score.desc(), ImageAsset.created_at.desc())
@@ -137,6 +143,8 @@ def _build_context(*, params: SearchParams, tokens: list[str], results_mode: boo
         active_filter_count += 1
     if params.orientation:
         active_filter_count += 1
+    if params.favorites:
+        active_filter_count += 1
 
     return {
         "params": params,
@@ -144,6 +152,7 @@ def _build_context(*, params: SearchParams, tokens: list[str], results_mode: boo
         "results_mode": results_mode,
         "has_search_criteria": bool(tokens or active_filter_count),
         "active_filter_count": active_filter_count,
+        "favorites_active": params.favorites,
         "people_options": PEOPLE_OPTIONS,
         "food_category_options": FOOD_CATEGORY_OPTIONS,
         "environment_options": ENVIRONMENT_OPTIONS,

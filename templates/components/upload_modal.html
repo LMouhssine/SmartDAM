@@ -4,45 +4,45 @@
             <div class="modal-header">
                 <div>
                     <p class="section-label mb-1">Importer</p>
-                    <h2 class="modal-title h5 mb-0" id="uploadModalLabel">Ajouter une image</h2>
+                    <h2 class="modal-title h5 mb-0" id="uploadModalLabel">Ajouter des images</h2>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <div class="modal-body">
                 <p class="modal-copy">
-                    Déposez un visuel ou sélectionnez un fichier. L’image sera analysée puis ajoutée au catalogue.
+                    Déposez un ou plusieurs visuels. Chaque image sera analysée par l'IA puis ajoutée au catalogue.
                 </p>
                 <p class="upload-limit-note">
                     Formats acceptés : PNG, JPG, WEBP, GIF. Taille maximale : {{ max_upload_size_label }}.
                 </p>
+                {% if analysis_enabled %}
+                <p class="upload-model-note">
+                    <span class="section-label">Modèles IA :</span>
+                    {{ hf_models.classification }} · {{ hf_models.detection }}
+                </p>
+                {% endif %}
 
-                <form action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data" id="uploadForm" data-loading-form data-loading-message="Import de l'image en cours...">
+                <form id="uploadForm">
                     <label class="upload-dropzone" for="uploadModalInput" id="uploadDropzone">
-                        <span class="upload-dropzone__title">Glisser-déposer une image</span>
-                        <span class="upload-dropzone__hint">ou cliquer pour choisir un fichier image</span>
-                        <input class="visually-hidden" type="file" id="uploadModalInput" name="image" accept="image/*" required>
+                        <span class="upload-dropzone__title">Glisser-déposer des images</span>
+                        <span class="upload-dropzone__hint">ou cliquer pour choisir des fichiers</span>
+                        <input class="visually-hidden" type="file" id="uploadModalInput" name="image" accept="image/*" multiple required>
                     </label>
 
-                    <div class="upload-preview" id="uploadPreview" hidden>
-                        <div class="upload-preview__media">
-                            <img src="" alt="Aperçu du fichier sélectionné" id="uploadPreviewImage">
-                        </div>
-                        <div class="upload-preview__content">
-                            <p class="section-label mb-2">Aperçu</p>
-                            <h3 class="h6 mb-1" id="uploadPreviewName">Aucun fichier</h3>
-                            <p class="upload-preview__meta mb-1" id="uploadPreviewMeta">Sélectionnez un fichier pour voir son aperçu.</p>
-                            <p class="upload-preview__note mb-0">Le fichier sera traité immédiatement après l’envoi.</p>
-                        </div>
-                    </div>
+                    <div class="upload-file-list" id="uploadFileList" hidden></div>
 
                     <div class="upload-empty-note" id="uploadEmptyNote">
                         Aucun fichier sélectionné.
                     </div>
 
+                    <div class="upload-counter" id="uploadCounter" hidden>
+                        <span id="uploadCounterText"></span>
+                    </div>
+
                     <div class="modal-footer px-0 pb-0">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
-                        <button type="submit" class="btn btn-primary" id="uploadSubmitButton">
-                            <span class="button-label">Envoyer l’image</span>
+                        <button type="submit" class="btn btn-primary" id="uploadSubmitButton" disabled>
+                            <span class="button-label" id="uploadSubmitLabel">Envoyer les images</span>
                             <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
                         </button>
                     </div>

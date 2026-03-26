@@ -2,22 +2,20 @@
     const loadingOverlay = document.getElementById("loadingOverlay");
     const loadingMessage = document.getElementById("loadingMessage");
     const uploadInput = document.getElementById("uploadModalInput");
-    const uploadPreview = document.getElementById("uploadPreview");
-    const uploadPreviewImage = document.getElementById("uploadPreviewImage");
-    const uploadPreviewName = document.getElementById("uploadPreviewName");
-    const uploadPreviewMeta = document.getElementById("uploadPreviewMeta");
     const uploadEmptyNote = document.getElementById("uploadEmptyNote");
     const uploadDropzone = document.getElementById("uploadDropzone");
     const uploadForm = document.getElementById("uploadForm");
     const uploadModalElement = document.getElementById("uploadModal");
     const uploadSubmitButton = document.getElementById("uploadSubmitButton");
+    const uploadFileList = document.getElementById("uploadFileList");
+    const uploadCounter = document.getElementById("uploadCounter");
+    const uploadCounterText = document.getElementById("uploadCounterText");
+    const uploadSubmitLabel = document.getElementById("uploadSubmitLabel");
     const detailModalElement = document.getElementById("imageDetailModal");
     const deleteModalElement = document.getElementById("deleteImageModal");
 
     const detailModal = detailModalElement ? bootstrap.Modal.getOrCreateInstance(detailModalElement) : null;
     const deleteModal = deleteModalElement ? bootstrap.Modal.getOrCreateInstance(deleteModalElement) : null;
-
-    let previewObjectUrl = null;
 
     const showLoadingOverlay = (message) => {
         if (!loadingOverlay) {
@@ -43,6 +41,146 @@
         }
     };
 
+    const renderTagsAsLinks = (container, tagsJson) => {
+        container.innerHTML = "";
+        let tags = [];
+        try {
+            tags = JSON.parse(tagsJson || "[]");
+        } catch (_error) {
+            tags = [];
+        }
+        tags.forEach((tag) => {
+            const link = document.createElement("a");
+            link.className = "tag-badge tag-badge--link";
+            link.textContent = tag;
+            link.href = `/search?q=${encodeURIComponent(tag)}`;
+            container.appendChild(link);
+        });
+    };
+
+    const bindFavoriteToggles = () => {
+        document.querySelectorAll("[data-favorite-toggle]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                const url = button.dataset.favoriteUrl;
+                if (!url) return;
+                try {
+                    const response = await fetch(url, { method: "POST" });
+                    if (!response.ok) throw new Error("Request failed");
+                    const data = await response.json();
+                    const isFav = data.is_favorite;
+                    button.textContent = isFav ? "\u2605" : "\u2606";
+                    button.classList.toggle("is-favorite", isFav);
+                    button.setAttribute("aria-label", isFav ? "Retirer des favoris" : "Ajouter aux favoris");
+                    button.setAttribute("title", isFav ? "Retirer des favoris" : "Ajouter aux favoris");
+                } catch (_err) {
+                    // Silent failure — state stays as-is
+                }
+            });
+        });
+    };
+
+    const bindDetailFavoriteButton = () => {
+        const btn = detailModalElement?.querySelector("#detailImageFavorite");
+        const label = detailModalElement?.querySelector("#detailFavoriteLabel");
+        if (!btn) return;
+
+        btn.addEventListener("click", async () => {
+            const url = btn.dataset.favoriteUrl;
+            const imageId = btn.dataset.imageId;
+            if (!url) return;
+
+            try {
+                const response = await fetch(url, { method: "POST" });
+                if (!response.ok) throw new Error("Request failed");
+                const data = await response.json();
+                const isFav = data.is_favorite;
+
+                if (label) label.textContent = isFav ? "Retirer des favoris" : "Ajouter aux favoris";
+                btn.classList.toggle("is-active-fav", isFav);
+
+                // Sync the card's star button on the page
+                if (imageId) {
+                    const cardStar = document.querySelector(`[data-favorite-toggle][data-image-id="${imageId}"]`);
+                    if (cardStar) {
+                        cardStar.textContent = isFav ? "\u2605" : "\u2606";
+                        cardStar.classList.toggle("is-favorite", isFav);
+                        cardStar.setAttribute("aria-label", isFav ? "Retirer des favoris" : "Ajouter aux favoris");
+                        cardStar.setAttribute("title", isFav ? "Retirer des favoris" : "Ajouter aux favoris");
+                    }
+                    // Also update the Voir button's data attr for next modal open
+                    const voirBtn = document.querySelector(`[data-image-id="${imageId}"][data-bs-toggle="modal"]`);
+                    if (voirBtn) voirBtn.dataset.imageFavorite = isFav ? "true" : "false";
+                }
+            } catch (_err) {
+                // Silent failure
+            }
+        });
+    };
+
+    const bindDetailReanalyzeButton = () => {
+        const btn = detailModalElement?.querySelector("#detailImageReanalyze");
+        const label = detailModalElement?.querySelector("#detailReanalyzeLabel");
+        const spinner = detailModalElement?.querySelector("#detailImageReanalyze .spinner-border");
+        const status = detailModalElement?.querySelector("#detailReanalyzeStatus");
+        if (!btn) return;
+
+        btn.addEventListener("click", async () => {
+            const url = btn.dataset.reanalyzeUrl;
+            const imageId = btn.dataset.imageId;
+            if (!url) return;
+
+            btn.disabled = true;
+            if (label) label.textContent = "Analyse en cours...";
+            spinner?.classList.remove("d-none");
+            if (status) status.classList.add("d-none");
+
+            try {
+                const response = await fetch(url, { method: "POST" });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || "Erreur inconnue");
+
+                // Update description
+                const desc = detailModalElement.querySelector("#detailImageDescription");
+                if (desc) desc.textContent = data.description || "Aucune description disponible.";
+
+                // Update analysis label
+                const analysis = detailModalElement.querySelector("#detailImageAnalysis");
+                if (analysis) analysis.textContent = data.analysis_label || "-";
+
+                // Rebuild tags as clickable links
+                const tagsContainer = detailModalElement.querySelector("#detailImageTags");
+                if (tagsContainer) renderTagsAsLinks(tagsContainer, JSON.stringify(data.tags || []));
+
+                // Update Voir button data attrs so modal reopens with fresh data
+                if (imageId) {
+                    const voirBtn = document.querySelector(`[data-image-id="${imageId}"][data-bs-toggle="modal"]`);
+                    if (voirBtn) {
+                        voirBtn.dataset.imageDescription = data.description || "";
+                        voirBtn.dataset.imageAnalysis = data.analysis_label || "";
+                        voirBtn.dataset.imageTags = JSON.stringify(data.tags || []);
+                    }
+                }
+
+                if (status) {
+                    status.textContent = "Analyse mise à jour.";
+                    status.className = "detail-reanalyze-status text-success";
+                    status.classList.remove("d-none");
+                    setTimeout(() => status.classList.add("d-none"), 3000);
+                }
+            } catch (err) {
+                if (status) {
+                    status.textContent = err.message || "L'analyse a échoué.";
+                    status.className = "detail-reanalyze-status text-danger";
+                    status.classList.remove("d-none");
+                }
+            } finally {
+                btn.disabled = false;
+                if (label) label.textContent = "Ré-analyser";
+                spinner?.classList.add("d-none");
+            }
+        });
+    };
+
     const bindLoadingForms = () => {
         document.querySelectorAll("[data-loading-form]").forEach((form) => {
             form.addEventListener("submit", (event) => {
@@ -58,120 +196,170 @@
         });
     };
 
-    const resetUploadPreview = () => {
-        if (previewObjectUrl) {
-            URL.revokeObjectURL(previewObjectUrl);
-            previewObjectUrl = null;
-        }
-
-        if (uploadPreviewImage) {
-            uploadPreviewImage.src = "";
-        }
-        if (uploadPreviewName) {
-            uploadPreviewName.textContent = "Aucun fichier";
-        }
-        if (uploadPreviewMeta) {
-            uploadPreviewMeta.textContent = "Sélectionnez un fichier pour voir son aperçu.";
-        }
-        if (uploadPreview) {
-            uploadPreview.hidden = true;
-        }
-        if (uploadEmptyNote) {
-            uploadEmptyNote.hidden = false;
-        }
-        if (uploadDropzone) {
-            uploadDropzone.classList.remove("is-dragover");
-        }
-        if (uploadSubmitButton) {
-            uploadSubmitButton.disabled = false;
-            const spinner = uploadSubmitButton.querySelector(".spinner-border");
-            if (spinner) {
-                spinner.classList.add("d-none");
-            }
-        }
+    const escapeHtml = (str) => {
+        const d = document.createElement("div");
+        d.textContent = str;
+        return d.innerHTML;
     };
 
     const formatFileSize = (bytes) => {
-        if (!bytes) {
-            return "0 Ko";
-        }
-
-        if (bytes >= 1024 * 1024) {
-            return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
-        }
-
+        if (!bytes) return "0 Ko";
+        if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
         return `${Math.max(1, Math.round(bytes / 1024))} Ko`;
     };
 
-    const updateUploadPreview = (file) => {
-        if (!file || !uploadPreview || !uploadPreviewImage || !uploadPreviewName || !uploadPreviewMeta) {
-            return;
-        }
+    const bindUploadPanel = () => {
+        if (!uploadInput || !uploadDropzone || !uploadForm) return;
 
-        if (previewObjectUrl) {
-            URL.revokeObjectURL(previewObjectUrl);
-        }
+        let pendingFiles = [];
 
-        previewObjectUrl = URL.createObjectURL(file);
-        uploadPreviewImage.src = previewObjectUrl;
-        uploadPreviewName.textContent = file.name;
+        const renderFileList = () => {
+            if (!uploadFileList) return;
 
-        const probe = new Image();
-        probe.onload = () => {
-            uploadPreviewMeta.textContent = `${formatFileSize(file.size)} · ${probe.width} × ${probe.height}`;
-        };
-        probe.src = previewObjectUrl;
-
-        uploadPreview.hidden = false;
-        if (uploadEmptyNote) {
-            uploadEmptyNote.hidden = true;
-        }
-    };
-
-    const bindUploadPreview = () => {
-        if (!uploadInput || !uploadDropzone) {
-            return;
-        }
-
-        uploadInput.addEventListener("change", () => {
-            const file = uploadInput.files?.[0];
-            if (!file) {
-                resetUploadPreview();
+            if (!pendingFiles.length) {
+                uploadFileList.hidden = true;
+                if (uploadEmptyNote) uploadEmptyNote.hidden = false;
+                if (uploadSubmitButton) uploadSubmitButton.disabled = true;
+                if (uploadSubmitLabel) uploadSubmitLabel.textContent = "Envoyer les images";
                 return;
             }
-            updateUploadPreview(file);
+
+            uploadFileList.hidden = false;
+            if (uploadEmptyNote) uploadEmptyNote.hidden = true;
+            if (uploadSubmitButton) uploadSubmitButton.disabled = false;
+
+            const count = pendingFiles.length;
+            if (uploadSubmitLabel) {
+                uploadSubmitLabel.textContent = count === 1 ? "Envoyer 1 image" : `Envoyer ${count} images`;
+            }
+
+            uploadFileList.innerHTML = "";
+            pendingFiles.forEach((file, idx) => {
+                const item = document.createElement("div");
+                item.className = "upload-file-item upload-file-item--pending";
+                item.id = `upload-item-${idx}`;
+                item.innerHTML = `
+                    <div>
+                        <div class="upload-file-item__name">${escapeHtml(file.name)}</div>
+                        <div class="upload-file-item__size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <div class="upload-file-item__status">En attente…</div>
+                `;
+                uploadFileList.appendChild(item);
+            });
+        };
+
+        const setItemState = (idx, state, message) => {
+            const item = document.getElementById(`upload-item-${idx}`);
+            if (!item) return;
+            item.className = `upload-file-item upload-file-item--${state}`;
+            const statusEl = item.querySelector(".upload-file-item__status");
+            if (!statusEl) return;
+            if (state === "uploading") {
+                statusEl.innerHTML = `<span class="upload-step-spinner"></span> ${escapeHtml(message)}`;
+            } else {
+                statusEl.textContent = message;
+            }
+        };
+
+        uploadInput.addEventListener("change", () => {
+            pendingFiles = Array.from(uploadInput.files || []);
+            renderFileList();
         });
 
-        ["dragenter", "dragover"].forEach((eventName) => {
-            uploadDropzone.addEventListener(eventName, (event) => {
-                event.preventDefault();
+        ["dragenter", "dragover"].forEach((ev) => {
+            uploadDropzone.addEventListener(ev, (e) => {
+                e.preventDefault();
                 uploadDropzone.classList.add("is-dragover");
             });
         });
 
-        ["dragleave", "drop"].forEach((eventName) => {
-            uploadDropzone.addEventListener(eventName, (event) => {
-                event.preventDefault();
+        ["dragleave", "drop"].forEach((ev) => {
+            uploadDropzone.addEventListener(ev, (e) => {
+                e.preventDefault();
                 uploadDropzone.classList.remove("is-dragover");
             });
         });
 
-        uploadDropzone.addEventListener("drop", (event) => {
-            const files = event.dataTransfer?.files;
-            if (!files || !files.length) {
-                return;
-            }
-
-            uploadInput.files = files;
-            updateUploadPreview(files[0]);
+        uploadDropzone.addEventListener("drop", (e) => {
+            const files = e.dataTransfer?.files;
+            if (!files || !files.length) return;
+            const merged = new DataTransfer();
+            Array.from(uploadInput.files || []).forEach((f) => merged.items.add(f));
+            Array.from(files).forEach((f) => merged.items.add(f));
+            uploadInput.files = merged.files;
+            pendingFiles = Array.from(merged.files);
+            renderFileList();
         });
 
-        if (uploadModalElement) {
-            uploadModalElement.addEventListener("hidden.bs.modal", () => {
-                uploadForm?.reset();
-                resetUploadPreview();
-            });
-        }
+        uploadModalElement?.addEventListener("hidden.bs.modal", () => {
+            pendingFiles = [];
+            uploadInput.value = "";
+            if (uploadFileList) { uploadFileList.hidden = true; uploadFileList.innerHTML = ""; }
+            if (uploadEmptyNote) uploadEmptyNote.hidden = false;
+            if (uploadCounter) uploadCounter.hidden = true;
+            if (uploadSubmitButton) {
+                uploadSubmitButton.disabled = true;
+                uploadSubmitButton.querySelector(".spinner-border")?.classList.add("d-none");
+            }
+            if (uploadSubmitLabel) uploadSubmitLabel.textContent = "Envoyer les images";
+        });
+
+        uploadForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if (!pendingFiles.length) return;
+
+            if (uploadSubmitButton) {
+                uploadSubmitButton.disabled = true;
+                uploadSubmitButton.querySelector(".spinner-border")?.classList.remove("d-none");
+            }
+
+            let doneCount = 0;
+            let errorCount = 0;
+            const total = pendingFiles.length;
+
+            const updateCounter = () => {
+                if (!uploadCounter || !uploadCounterText) return;
+                uploadCounter.hidden = false;
+                uploadCounterText.textContent = `${doneCount + errorCount} / ${total} traitée${total > 1 ? "s" : ""}`;
+            };
+
+            for (let i = 0; i < pendingFiles.length; i++) {
+                const file = pendingFiles[i];
+                setItemState(i, "uploading", "Analyse IA en cours…");
+
+                const formData = new FormData();
+                formData.append("image", file, file.name);
+
+                try {
+                    const response = await fetch("/upload/async", { method: "POST", body: formData });
+                    const data = await response.json();
+
+                    if (!response.ok || data.status === "error") {
+                        throw new Error(data.message || `HTTP ${response.status}`);
+                    }
+
+                    const tagCount = data.tags?.length ?? 0;
+                    const sourceLabel = data.analysis_label || data.analysis_source || "Analysé";
+                    setItemState(i, "done", `✓ ${tagCount} tag${tagCount !== 1 ? "s" : ""} · ${sourceLabel}`);
+                    doneCount++;
+                } catch (err) {
+                    setItemState(i, "error", `✗ ${err.message || "Échec de l'envoi"}`);
+                    errorCount++;
+                }
+
+                updateCounter();
+            }
+
+            if (uploadSubmitButton) {
+                uploadSubmitButton.disabled = false;
+                uploadSubmitButton.querySelector(".spinner-border")?.classList.add("d-none");
+            }
+
+            if (doneCount > 0) {
+                setTimeout(() => window.location.reload(), 900);
+            }
+        });
     };
 
     const populateDeleteModal = ({ deleteUrl, imageTitle }) => {
@@ -261,21 +449,23 @@
             detailDelete.dataset.imageTitle = trigger.dataset.imageTitle || "image";
         }
         if (detailTags) {
-            detailTags.innerHTML = "";
-            let tags = [];
+            renderTagsAsLinks(detailTags, trigger.dataset.imageTags);
+        }
 
-            try {
-                tags = JSON.parse(trigger.dataset.imageTags || "[]");
-            } catch (_error) {
-                tags = [];
-            }
+        const detailFavorite = detailModalElement.querySelector("#detailImageFavorite");
+        const detailFavoriteLabel = detailModalElement.querySelector("#detailFavoriteLabel");
+        if (detailFavorite && detailFavoriteLabel) {
+            const isFav = trigger.dataset.imageFavorite === "true";
+            detailFavoriteLabel.textContent = isFav ? "Retirer des favoris" : "Ajouter aux favoris";
+            detailFavorite.dataset.favoriteUrl = trigger.dataset.imageFavoriteUrl || "";
+            detailFavorite.dataset.imageId = trigger.dataset.imageId || "";
+            detailFavorite.classList.toggle("is-active-fav", isFav);
+        }
 
-            tags.forEach((tag) => {
-                const badge = document.createElement("span");
-                badge.className = "tag-badge";
-                badge.textContent = tag;
-                detailTags.appendChild(badge);
-            });
+        const detailReanalyze = detailModalElement.querySelector("#detailImageReanalyze");
+        if (detailReanalyze) {
+            detailReanalyze.dataset.reanalyzeUrl = trigger.dataset.imageReanalyzeUrl || "";
+            detailReanalyze.dataset.imageId = trigger.dataset.imageId || "";
         }
     };
 
@@ -322,8 +512,34 @@
         });
     };
 
+    const bindDynamicSearch = () => {
+        const globalSearch = document.getElementById("global-search");
+        const filterForm = document.querySelector(".filter-form");
+
+        if (globalSearch) {
+            let searchTimer = null;
+            globalSearch.addEventListener("input", () => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    globalSearch.closest("form")?.requestSubmit();
+                }, 400);
+            });
+        }
+
+        if (!filterForm) return;
+
+        ["filter-people", "filter-food", "filter-environment", "filter-orientation", "filter-sort"].forEach((id) => {
+            document.getElementById(id)?.addEventListener("change", () => filterForm.requestSubmit());
+        });
+        document.getElementById("filter-favorites")?.addEventListener("change", () => filterForm.requestSubmit());
+    };
+
     bindLoadingForms();
-    bindUploadPreview();
+    bindUploadPanel();
     bindDetailModal();
     bindDeleteTriggers();
+    bindFavoriteToggles();
+    bindDetailFavoriteButton();
+    bindDetailReanalyzeButton();
+    bindDynamicSearch();
 })();

@@ -5,17 +5,28 @@
 
     <div class="gallery-card__body">
         <div class="gallery-card__header">
-            <h3 class="gallery-card__title text-truncate">{{ image.original_filename }}</h3>
-            <p class="gallery-card__date mb-0">{{ image.created_at.strftime("%d/%m/%Y · %H:%M") }}</p>
+            <div class="gallery-card__header-text">
+                <h3 class="gallery-card__title text-truncate">{{ image.original_filename }}</h3>
+                <p class="gallery-card__date mb-0">{{ image.created_at.strftime("%d/%m/%Y · %H:%M") }}</p>
+            </div>
+            <button
+                type="button"
+                class="gallery-card__favorite {% if image.is_favorite %}is-favorite{% endif %}"
+                data-favorite-toggle
+                data-image-id="{{ image.id }}"
+                data-favorite-url="{{ url_for('toggle_favorite', image_id=image.id) }}"
+                aria-label="{% if image.is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}"
+                title="{% if image.is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}"
+            >{% if image.is_favorite %}&#9733;{% else %}&#9734;{% endif %}</button>
         </div>
 
         <p class="gallery-card__description">
-            {{ image.description or "Aucune description disponible." }}
+            {{ (image.description or "Aucune description disponible.") | highlight(search.tokens) | safe }}
         </p>
 
         <div class="gallery-card__tags">
             {% for tag in image.tag_list[:3] %}
-                <span class="tag-badge">{{ tag }}</span>
+                <span class="tag-badge">{{ tag | highlight(search.tokens) | safe }}</span>
             {% endfor %}
             {% if image.tag_list|length > 3 %}
                 <span class="tag-badge tag-badge--muted">+{{ image.tag_list|length - 3 }}</span>
@@ -38,10 +49,13 @@
                 class="btn btn-sm btn-outline-secondary"
                 data-bs-toggle="modal"
                 data-bs-target="#imageDetailModal"
+                data-image-id="{{ image.id }}"
                 data-image-title="{{ image.original_filename }}"
                 data-image-url="{{ image.image_url }}"
                 data-image-download-url="{{ url_for('download_image', image_id=image.id) }}"
                 data-image-delete-url="{{ url_for('delete_image', image_id=image.id) }}"
+                data-image-favorite-url="{{ url_for('toggle_favorite', image_id=image.id) }}"
+                data-image-reanalyze-url="{{ url_for('reanalyze_image', image_id=image.id) }}"
                 data-image-description="{{ image.description or 'Aucune description disponible.' }}"
                 data-image-created="{{ image.created_at.strftime('%d/%m/%Y à %H:%M') }}"
                 data-image-tags="{{ image.tag_list|tojson|forceescape }}"
@@ -50,6 +64,7 @@
                 data-image-storage="{{ 'Azure Blob Storage' if image.storage_backend == 'azure' else 'Stockage local' }}"
                 data-image-analysis="{{ image.analysis_label }}"
                 data-image-people="{{ 'Oui' if image.has_people else 'Non' }}"
+                data-image-favorite="{{ 'true' if image.is_favorite else 'false' }}"
             >
                 Voir
             </button>

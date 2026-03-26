@@ -21,6 +21,7 @@
                 <input type="hidden" name="environment" value="{{ search.params.environment }}">
                 <input type="hidden" name="orientation" value="{{ search.params.orientation }}">
                 <input type="hidden" name="sort" value="{{ search.params.sort }}">
+                <input type="hidden" name="favorites" value="{{ '1' if search.favorites_active else '' }}">
                 <button type="submit" class="btn btn-primary">Rechercher</button>
             </form>
 

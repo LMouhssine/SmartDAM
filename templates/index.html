@@ -16,6 +16,17 @@
     </div>
 </section>
 
+{% if dashboard_stats.top_tags %}
+<section class="top-tags-bar">
+    <span class="section-label me-2">Tags fréquents :</span>
+    {% for tag, count in dashboard_stats.top_tags %}
+        <a href="{{ url_for('search', q=tag) }}" class="tag-badge tag-badge--link" title="{{ count }} image{{ '' if count == 1 else 's' }}">
+            {{ tag }}<span class="tag-badge__count">{{ count }}</span>
+        </a>
+    {% endfor %}
+</section>
+{% endif %}
+
 <section class="filter-panel">
     <div class="filter-panel__header d-lg-none">
         <button
@@ -79,10 +90,17 @@
     {% else %}
         <div class="empty-state">
             {% if search.results_mode %}
-                <h3 class="empty-state__title">Aucun résultat trouvé</h3>
-                <p class="empty-state__copy">
-                    Essayez de modifier la recherche ou de retirer un filtre.
-                </p>
+                {% if search.favorites_active %}
+                    <h3 class="empty-state__title">Aucun favori pour ces critères</h3>
+                    <p class="empty-state__copy">
+                        Marquez des images avec l'étoile &#9733; pour les retrouver ici.
+                    </p>
+                {% else %}
+                    <h3 class="empty-state__title">Aucun résultat trouvé</h3>
+                    <p class="empty-state__copy">
+                        Essayez de modifier la recherche ou de retirer un filtre.
+                    </p>
+                {% endif %}
                 <div class="empty-state__actions">
                     <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Voir toute la galerie</a>
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">Importer une image</button>
