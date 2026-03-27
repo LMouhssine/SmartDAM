@@ -6,22 +6,20 @@
                 <span class="brand-title">SmartDAM</span>
             </a>
 
-            <form class="topbar-search" action="{{ url_for('search') }}" method="get" data-loading-form data-loading-message="Recherche en cours...">
+            <form class="topbar-search" id="search-form" action="{{ url_for('search') }}" method="get">
                 <label class="visually-hidden" for="global-search">Rechercher dans le catalogue</label>
-                <input
-                    id="global-search"
-                    name="q"
-                    type="search"
-                    class="form-control"
-                    placeholder="Rechercher par tags ou description"
-                    value="{{ search.params.query }}"
-                >
-                <input type="hidden" name="people" value="{{ search.params.people }}">
-                <input type="hidden" name="food_category" value="{{ search.params.food_category }}">
-                <input type="hidden" name="environment" value="{{ search.params.environment }}">
-                <input type="hidden" name="orientation" value="{{ search.params.orientation }}">
-                <input type="hidden" name="sort" value="{{ search.params.sort }}">
-                <input type="hidden" name="favorites" value="{{ '1' if search.favorites_active else '' }}">
+                <div class="search-input-wrap">
+                    <input
+                        id="global-search"
+                        name="q"
+                        type="search"
+                        class="form-control"
+                        placeholder="Rechercher par tags, description, mots-clés…"
+                        value="{{ search.params.query }}"
+                        autocomplete="off"
+                    >
+                    <span class="search-spinner" id="search-spinner" aria-hidden="true" hidden></span>
+                </div>
                 <button type="submit" class="btn btn-primary">Rechercher</button>
             </form>
 

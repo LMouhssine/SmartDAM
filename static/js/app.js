@@ -18,27 +18,16 @@
     const deleteModal = deleteModalElement ? bootstrap.Modal.getOrCreateInstance(deleteModalElement) : null;
 
     const showLoadingOverlay = (message) => {
-        if (!loadingOverlay) {
-            return;
-        }
-
-        if (loadingMessage) {
-            loadingMessage.textContent = message || "Chargement en cours...";
-        }
-
+        if (!loadingOverlay) return;
+        if (loadingMessage) loadingMessage.textContent = message || "Chargement en cours...";
         loadingOverlay.hidden = false;
     };
 
     const decorateSubmitButton = (button) => {
-        if (!button) {
-            return;
-        }
-
+        if (!button) return;
         button.disabled = true;
         const spinner = button.querySelector(".spinner-border");
-        if (spinner) {
-            spinner.classList.remove("d-none");
-        }
+        if (spinner) spinner.classList.remove("d-none");
     };
 
     const renderTagsAsLinks = (container, tagsJson) => {
@@ -49,11 +38,13 @@
         } catch (_error) {
             tags = [];
         }
-        tags.forEach((tag) => {
+        const colors = ["tag-badge--c0", "tag-badge--c1", "tag-badge--c2", "tag-badge--c3", "tag-badge--c4", "tag-badge--c5"];
+        tags.forEach((tag, i) => {
             const link = document.createElement("a");
-            link.className = "tag-badge tag-badge--link";
+            link.className = `tag-badge tag-badge--link ${colors[i % colors.length]}`;
             link.textContent = tag;
-            link.href = `/search?q=${encodeURIComponent(tag)}`;
+            link.href = "#";
+            link.dataset.tagSearch = tag;
             container.appendChild(link);
         });
     };
@@ -98,7 +89,6 @@
                 if (label) label.textContent = isFav ? "Retirer des favoris" : "Ajouter aux favoris";
                 btn.classList.toggle("is-active-fav", isFav);
 
-                // Sync the card's star button on the page
                 if (imageId) {
                     const cardStar = document.querySelector(`[data-favorite-toggle][data-image-id="${imageId}"]`);
                     if (cardStar) {
@@ -107,7 +97,6 @@
                         cardStar.setAttribute("aria-label", isFav ? "Retirer des favoris" : "Ajouter aux favoris");
                         cardStar.setAttribute("title", isFav ? "Retirer des favoris" : "Ajouter aux favoris");
                     }
-                    // Also update the Voir button's data attr for next modal open
                     const voirBtn = document.querySelector(`[data-image-id="${imageId}"][data-bs-toggle="modal"]`);
                     if (voirBtn) voirBtn.dataset.imageFavorite = isFav ? "true" : "false";
                 }
@@ -139,19 +128,15 @@
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || "Erreur inconnue");
 
-                // Update description
                 const desc = detailModalElement.querySelector("#detailImageDescription");
                 if (desc) desc.textContent = data.description || "Aucune description disponible.";
 
-                // Update analysis label
                 const analysis = detailModalElement.querySelector("#detailImageAnalysis");
                 if (analysis) analysis.textContent = data.analysis_label || "-";
 
-                // Rebuild tags as clickable links
                 const tagsContainer = detailModalElement.querySelector("#detailImageTags");
                 if (tagsContainer) renderTagsAsLinks(tagsContainer, JSON.stringify(data.tags || []));
 
-                // Update Voir button data attrs so modal reopens with fresh data
                 if (imageId) {
                     const voirBtn = document.querySelector(`[data-image-id="${imageId}"][data-bs-toggle="modal"]`);
                     if (voirBtn) {
@@ -184,10 +169,7 @@
     const bindLoadingForms = () => {
         document.querySelectorAll("[data-loading-form]").forEach((form) => {
             form.addEventListener("submit", (event) => {
-                if (!form.checkValidity()) {
-                    return;
-                }
-
+                if (!form.checkValidity()) return;
                 const submitter = event.submitter;
                 const message = form.dataset.loadingMessage || submitter?.dataset.loadingMessage || "Chargement en cours...";
                 showLoadingOverlay(message);
@@ -363,38 +345,25 @@
     };
 
     const populateDeleteModal = ({ deleteUrl, imageTitle }) => {
-        if (!deleteModalElement || !deleteUrl) {
-            return;
-        }
+        if (!deleteModalElement || !deleteUrl) return;
 
         const deleteForm = deleteModalElement.querySelector("#deleteImageForm");
         const deleteName = deleteModalElement.querySelector("#deleteImageName");
         const deleteNextInput = deleteModalElement.querySelector("#deleteNextInput");
 
-        if (deleteForm) {
-            deleteForm.action = deleteUrl;
-        }
-        if (deleteName) {
-            deleteName.textContent = imageTitle || "image";
-        }
-        if (deleteNextInput) {
-            deleteNextInput.value = `${window.location.pathname}${window.location.search}`;
-        }
+        if (deleteForm) deleteForm.action = deleteUrl;
+        if (deleteName) deleteName.textContent = imageTitle || "image";
+        if (deleteNextInput) deleteNextInput.value = `${window.location.pathname}${window.location.search}`;
     };
 
     const openDeleteModal = ({ deleteUrl, imageTitle }) => {
-        if (!deleteModal) {
-            return;
-        }
-
+        if (!deleteModal) return;
         populateDeleteModal({ deleteUrl, imageTitle });
         deleteModal.show();
     };
 
     const updateDetailModal = (trigger) => {
-        if (!detailModalElement || !trigger) {
-            return;
-        }
+        if (!detailModalElement || !trigger) return;
 
         const detailTitle = detailModalElement.querySelector("#detailImageTitle");
         const detailPreview = detailModalElement.querySelector("#detailImagePreview");
@@ -410,47 +379,25 @@
         const detailTags = detailModalElement.querySelector("#detailImageTags");
         const detailDelete = detailModalElement.querySelector("#detailImageDelete");
 
-        if (detailTitle) {
-            detailTitle.textContent = trigger.dataset.imageTitle || "Image";
-        }
+        if (detailTitle) detailTitle.textContent = trigger.dataset.imageTitle || "Image";
         if (detailPreview) {
             detailPreview.src = trigger.dataset.imageUrl || "";
             detailPreview.alt = trigger.dataset.imageTitle || "Image";
         }
-        if (detailDescription) {
-            detailDescription.textContent = trigger.dataset.imageDescription || "Aucune description disponible.";
-        }
-        if (detailCreated) {
-            detailCreated.textContent = trigger.dataset.imageCreated || "-";
-        }
-        if (detailOrientation) {
-            detailOrientation.textContent = trigger.dataset.imageOrientation || "-";
-        }
-        if (detailDimensions) {
-            detailDimensions.textContent = trigger.dataset.imageDimensions || "-";
-        }
-        if (detailPeople) {
-            detailPeople.textContent = trigger.dataset.imagePeople || "-";
-        }
-        if (detailStorage) {
-            detailStorage.textContent = trigger.dataset.imageStorage || "-";
-        }
-        if (detailAnalysis) {
-            detailAnalysis.textContent = trigger.dataset.imageAnalysis || "-";
-        }
-        if (detailOpen) {
-            detailOpen.href = trigger.dataset.imageUrl || "#";
-        }
-        if (detailDownload) {
-            detailDownload.href = trigger.dataset.imageDownloadUrl || "#";
-        }
+        if (detailDescription) detailDescription.textContent = trigger.dataset.imageDescription || "Aucune description disponible.";
+        if (detailCreated) detailCreated.textContent = trigger.dataset.imageCreated || "-";
+        if (detailOrientation) detailOrientation.textContent = trigger.dataset.imageOrientation || "-";
+        if (detailDimensions) detailDimensions.textContent = trigger.dataset.imageDimensions || "-";
+        if (detailPeople) detailPeople.textContent = trigger.dataset.imagePeople || "-";
+        if (detailStorage) detailStorage.textContent = trigger.dataset.imageStorage || "-";
+        if (detailAnalysis) detailAnalysis.textContent = trigger.dataset.imageAnalysis || "-";
+        if (detailOpen) detailOpen.href = trigger.dataset.imageUrl || "#";
+        if (detailDownload) detailDownload.href = trigger.dataset.imageDownloadUrl || "#";
         if (detailDelete) {
             detailDelete.dataset.deleteUrl = trigger.dataset.imageDeleteUrl || "";
             detailDelete.dataset.imageTitle = trigger.dataset.imageTitle || "image";
         }
-        if (detailTags) {
-            renderTagsAsLinks(detailTags, trigger.dataset.imageTags);
-        }
+        if (detailTags) renderTagsAsLinks(detailTags, trigger.dataset.imageTags);
 
         const detailFavorite = detailModalElement.querySelector("#detailImageFavorite");
         const detailFavoriteLabel = detailModalElement.querySelector("#detailFavoriteLabel");
@@ -470,9 +417,7 @@
     };
 
     const bindDetailModal = () => {
-        if (!detailModalElement) {
-            return;
-        }
+        if (!detailModalElement) return;
 
         detailModalElement.addEventListener("show.bs.modal", (event) => {
             updateDetailModal(event.relatedTarget);
@@ -481,9 +426,7 @@
         const detailDelete = detailModalElement.querySelector("#detailImageDelete");
         if (detailDelete) {
             detailDelete.addEventListener("click", () => {
-                if (!detailDelete.dataset.deleteUrl) {
-                    return;
-                }
+                if (!detailDelete.dataset.deleteUrl) return;
 
                 const payload = {
                     deleteUrl: detailDelete.dataset.deleteUrl,
@@ -512,27 +455,100 @@
         });
     };
 
+    // ── Live search ──────────────────────────────────────────────────────────
+
     const bindDynamicSearch = () => {
         const globalSearch = document.getElementById("global-search");
-        const filterForm = document.querySelector(".filter-form");
+        const searchForm = document.getElementById("search-form");
+        const galleryResults = document.getElementById("gallery-results");
+        const searchSpinner = document.getElementById("search-spinner");
 
-        if (globalSearch) {
-            let searchTimer = null;
-            globalSearch.addEventListener("input", () => {
-                clearTimeout(searchTimer);
-                searchTimer = setTimeout(() => {
-                    globalSearch.closest("form")?.requestSubmit();
-                }, 400);
-            });
-        }
+        if (!globalSearch || !galleryResults) return;
 
-        if (!filterForm) return;
+        let searchTimer = null;
+        let currentController = null;
 
-        ["filter-people", "filter-food", "filter-environment", "filter-orientation", "filter-sort"].forEach((id) => {
-            document.getElementById(id)?.addEventListener("change", () => filterForm.requestSubmit());
+        const setSearching = (on) => {
+            if (searchSpinner) searchSpinner.hidden = !on;
+            galleryResults.classList.toggle("is-searching", on);
+        };
+
+        const rebindGallery = () => {
+            bindFavoriteToggles();
+            bindDeleteTriggers();
+            // Re-bind tag-search clicks inside gallery
+            bindTagSearch();
+        };
+
+        const doSearch = async (query) => {
+            // Abort previous in-flight request
+            if (currentController) currentController.abort();
+            const controller = new AbortController();
+            currentController = controller;
+
+            setSearching(true);
+
+            try {
+                const url = new URL("/search", window.location.origin);
+                url.searchParams.set("q", query);
+                url.searchParams.set("partial", "1");
+
+                const response = await fetch(url.toString(), { signal: controller.signal });
+                if (!response.ok) throw new Error("Search failed");
+
+                const html = await response.text();
+                galleryResults.innerHTML = html;
+                rebindGallery();
+
+                // Update browser URL without navigating
+                const newUrl = query ? `/search?q=${encodeURIComponent(query)}` : "/";
+                history.replaceState(null, "", newUrl);
+            } catch (err) {
+                if (err.name !== "AbortError") {
+                    console.error("Search error:", err);
+                }
+            } finally {
+                if (currentController === controller) {
+                    setSearching(false);
+                    currentController = null;
+                }
+            }
+        };
+
+        // Live search on keystroke (debounced)
+        globalSearch.addEventListener("input", () => {
+            clearTimeout(searchTimer);
+            const query = globalSearch.value.trim();
+            searchTimer = setTimeout(() => doSearch(query), 350);
         });
-        document.getElementById("filter-favorites")?.addEventListener("change", () => filterForm.requestSubmit());
+
+        // Intercept form submit (Enter key) — no page reload
+        searchForm?.addEventListener("submit", (e) => {
+            e.preventDefault();
+            clearTimeout(searchTimer);
+            doSearch(globalSearch.value.trim());
+        });
     };
+
+    // ── Tag-click search ─────────────────────────────────────────────────────
+
+    const bindTagSearch = () => {
+        document.querySelectorAll("[data-tag-search]").forEach((el) => {
+            el.addEventListener("click", (e) => {
+                e.preventDefault();
+                const tag = el.dataset.tagSearch;
+                if (!tag) return;
+
+                const globalSearch = document.getElementById("global-search");
+                if (globalSearch) {
+                    globalSearch.value = tag;
+                    globalSearch.dispatchEvent(new Event("input"));
+                }
+            });
+        });
+    };
+
+    // ── Init ─────────────────────────────────────────────────────────────────
 
     bindLoadingForms();
     bindUploadPanel();
@@ -542,4 +558,5 @@
     bindDetailFavoriteButton();
     bindDetailReanalyzeButton();
     bindDynamicSearch();
+    bindTagSearch();
 })();

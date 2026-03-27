@@ -62,10 +62,7 @@ def create_app() -> Flask:
             "HUGGINGFACE_DETECTION_MODEL",
             "facebook/detr-resnet-50",
         ),
-        HUGGINGFACE_CAPTION_MODEL=os.getenv(
-            "HUGGINGFACE_CAPTION_MODEL",
-            "",
-        ),
+        HUGGINGFACE_CAPTION_MODEL=os.getenv("HUGGINGFACE_CAPTION_MODEL") or "Salesforce/blip-image-captioning-large",
         HUGGINGFACE_TIMEOUT=int(os.getenv("HUGGINGFACE_TIMEOUT", 20)),
         HUGGINGFACE_MAX_TAGS=int(os.getenv("HUGGINGFACE_MAX_TAGS", 8)),
     )
@@ -240,20 +237,24 @@ def register_routes(app: Flask) -> None:
         images = image_query.all()
 
         app.logger.info(
-            "Search request executed with q='%s', people='%s', food='%s', environment='%s', orientation='%s', sort='%s'.",
+            "Search request: q='%s', %d results.",
             params.query,
-            params.people,
-            params.food_category,
-            params.environment,
-            params.orientation,
-            params.sort,
+            len(images),
         )
+
+        if request.args.get("partial") == "1":
+            return render_template(
+                "components/search_results.html",
+                images=images,
+                result_count=len(images),
+                search=search_context,
+            )
 
         return render_gallery(
             images=images,
             search_context=search_context,
             page_title="Résultats de recherche",
-            page_copy="Les résultats combinent mots-clés, filtres et tri pour retrouver rapidement les bons visuels.",
+            page_copy="Résultats de votre recherche dans la bibliothèque visuelle.",
         )
 
     @app.post("/upload")

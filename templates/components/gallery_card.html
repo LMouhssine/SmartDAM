@@ -25,11 +25,11 @@
         </p>
 
         <div class="gallery-card__tags">
-            {% for tag in image.tag_list[:3] %}
-                <span class="tag-badge">{{ tag | highlight(search.tokens) | safe }}</span>
+            {% for tag in image.tag_list[:4] %}
+                <span class="tag-badge tag-badge--c{{ loop.index0 % 6 }}">{{ tag | highlight(search.tokens) | safe }}</span>
             {% endfor %}
-            {% if image.tag_list|length > 3 %}
-                <span class="tag-badge tag-badge--muted">+{{ image.tag_list|length - 3 }}</span>
+            {% if image.tag_list|length > 4 %}
+                <span class="tag-badge tag-badge--muted">+{{ image.tag_list|length - 4 }}</span>
             {% endif %}
         </div>
 

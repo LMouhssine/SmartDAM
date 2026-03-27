@@ -20,103 +20,16 @@
 <section class="top-tags-bar">
     <span class="section-label me-2">Tags fréquents :</span>
     {% for tag, count in dashboard_stats.top_tags %}
-        <a href="{{ url_for('search', q=tag) }}" class="tag-badge tag-badge--link" title="{{ count }} image{{ '' if count == 1 else 's' }}">
+        <a href="#" class="tag-badge tag-badge--link tag-badge--c{{ loop.index0 % 6 }}" data-tag-search="{{ tag }}" title="{{ count }} image{{ '' if count == 1 else 's' }}">
             {{ tag }}<span class="tag-badge__count">{{ count }}</span>
         </a>
     {% endfor %}
 </section>
 {% endif %}
 
-<section class="filter-panel">
-    <div class="filter-panel__header d-lg-none">
-        <button
-            class="btn btn-outline-secondary w-100"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#searchFilters"
-            aria-expanded="{% if search.active_filter_count %}true{% else %}false{% endif %}"
-            aria-controls="searchFilters"
-        >
-            Filtres{% if search.active_filter_count %} ({{ search.active_filter_count }}){% endif %}
-        </button>
-    </div>
-    <div class="collapse d-lg-block {% if search.active_filter_count %}show{% endif %}" id="searchFilters">
-        {% include "components/filter_panel.html" %}
-    </div>
-</section>
-
-<section class="results-summary">
-    <div>
-        <p class="section-label mb-1">{% if search.results_mode %}Résultats{% else %}Galerie{% endif %}</p>
-        <h2 class="results-summary__title mb-0">
-            {{ result_count }} résultat{{ "" if result_count == 1 else "s" }}
-            {% if search.params.query %}
-                pour "{{ search.params.query }}"
-            {% endif %}
-        </h2>
-    </div>
-    {% if search.tokens or search.active_filter_count or search.results_mode %}
-        <div class="results-summary__meta">
-            {% if search.tokens %}
-                <span>{{ search.tokens|length }} mot{{ "" if search.tokens|length == 1 else "s" }}-clé{{ "" if search.tokens|length == 1 else "s" }}</span>
-            {% endif %}
-            {% if search.active_filter_count %}
-                <span>{{ search.active_filter_count }} filtre{{ "" if search.active_filter_count == 1 else "s" }}</span>
-            {% endif %}
-            {% if search.results_mode %}
-                <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Réinitialiser</a>
-            {% endif %}
-        </div>
-    {% endif %}
-</section>
-
-{% if search.tokens %}
-    <div class="active-tags">
-        {% for token in search.tokens %}
-            <span class="tag-badge">{{ token }}</span>
-        {% endfor %}
-    </div>
-{% endif %}
-
-<section class="gallery-section">
-    {% if images %}
-        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-3">
-            {% for image in images %}
-                <div class="col">
-                    {% include "components/gallery_card.html" %}
-                </div>
-            {% endfor %}
-        </div>
-    {% else %}
-        <div class="empty-state">
-            {% if search.results_mode %}
-                {% if search.favorites_active %}
-                    <h3 class="empty-state__title">Aucun favori pour ces critères</h3>
-                    <p class="empty-state__copy">
-                        Marquez des images avec l'étoile &#9733; pour les retrouver ici.
-                    </p>
-                {% else %}
-                    <h3 class="empty-state__title">Aucun résultat trouvé</h3>
-                    <p class="empty-state__copy">
-                        Essayez de modifier la recherche ou de retirer un filtre.
-                    </p>
-                {% endif %}
-                <div class="empty-state__actions">
-                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Voir toute la galerie</a>
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">Importer une image</button>
-                </div>
-            {% else %}
-                <h3 class="empty-state__title">Aucune image dans le catalogue</h3>
-                <p class="empty-state__copy">
-                    Importez une image ou chargez le jeu de démonstration pour commencer.
-                </p>
-                <div class="empty-state__actions">
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">Importer une image</button>
-                </div>
-            {% endif %}
-        </div>
-    {% endif %}
-</section>
+<div id="gallery-results">
+    {% include "components/search_results.html" %}
+</div>
 {% endblock %}
 
 {% block modals %}

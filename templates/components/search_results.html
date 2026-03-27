@@ -1,0 +1,61 @@
+{# Search results partial — included inline and returned for ?partial=1 AJAX calls #}
+<section class="results-summary">
+    <div>
+        <p class="section-label mb-1">{% if search.results_mode %}Résultats{% else %}Galerie{% endif %}</p>
+        <h2 class="results-summary__title mb-0">
+            {{ result_count }} résultat{{ "" if result_count == 1 else "s" }}
+            {% if search.params.query %}
+                pour <em>{{ search.params.query }}</em>
+            {% endif %}
+        </h2>
+    </div>
+    {% if search.results_mode %}
+        <div class="results-summary__meta">
+            {% if search.tokens %}
+                <span>{{ search.tokens|length }} mot{{ "" if search.tokens|length == 1 else "s" }}-clé{{ "" if search.tokens|length == 1 else "s" }}</span>
+            {% endif %}
+            <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Réinitialiser</a>
+        </div>
+    {% endif %}
+</section>
+
+{% if search.tokens %}
+    <div class="active-tags">
+        {% for token in search.tokens %}
+            <span class="tag-badge tag-badge--c{{ loop.index0 % 6 }}">{{ token }}</span>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<section class="gallery-section">
+    {% if images %}
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-3">
+            {% for image in images %}
+                <div class="col">
+                    {% include "components/gallery_card.html" %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            {% if search.results_mode %}
+                <h3 class="empty-state__title">Aucun résultat trouvé</h3>
+                <p class="empty-state__copy">
+                    Essayez un autre mot-clé ou effacez la recherche pour voir toute la galerie.
+                </p>
+                <div class="empty-state__actions">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Voir toute la galerie</a>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">Importer une image</button>
+                </div>
+            {% else %}
+                <h3 class="empty-state__title">Aucune image dans le catalogue</h3>
+                <p class="empty-state__copy">
+                    Importez une image ou chargez le jeu de démonstration pour commencer.
+                </p>
+                <div class="empty-state__actions">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">Importer une image</button>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+</section>

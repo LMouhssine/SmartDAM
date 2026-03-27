@@ -12,22 +12,24 @@ import requests
 HF_API_BASE_URL = "https://router.huggingface.co/hf-inference/models"
 DEFAULT_CLASSIFICATION_MODEL = "microsoft/resnet-50"
 DEFAULT_DETECTION_MODEL = "facebook/detr-resnet-50"
-DEFAULT_CAPTION_MODEL = ""
+DEFAULT_CAPTION_MODEL = "Salesforce/blip-image-captioning-large"
 DEFAULT_TIMEOUT = 20
 DEFAULT_MAX_TAGS = 8
-MIN_CLASSIFICATION_SCORE = 0.03
+MIN_CLASSIFICATION_SCORE = 0.10
 MIN_DETECTION_SCORE = 0.3
 IRRELEVANT_TAGS = {
-    "image",
-    "images",
-    "photo",
-    "photography",
-    "picture",
-    "illustration",
-    "graphic",
-    "art",
-    "object",
-    "objects",
+    # Generic / meta
+    "image", "images", "photo", "photography", "picture", "illustration",
+    "graphic", "art", "object", "objects", "item", "thing", "stuff",
+    # Marine / coral — commonly confused with food textures by ResNet
+    "coral", "brain coral", "coral reef", "coral fungus", "reef", "brain",
+    "sea anemone", "anemone", "jellyfish", "nudibranch", "starfish",
+    "sea urchin", "sponge", "seaweed", "kelp", "algae",
+    # Geological / mineral
+    "rock", "stone", "mineral", "fossil", "crystal", "gem", "gemstone",
+    # Abstract / texture ResNet artefacts
+    "pattern", "texture", "surface", "background", "abstract",
+    "web site", "website", "web page", "screen",
 }
 CAPTION_STOPWORDS = {
     "a",
