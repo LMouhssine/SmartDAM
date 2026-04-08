@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import requests
+from PIL import Image
+from io import BytesIO
 
 HF_API_BASE_URL = "https://router.huggingface.co/hf-inference/models"
 DEFAULT_CLASSIFICATION_MODEL = "microsoft/resnet-50"
@@ -203,6 +206,178 @@ class AnalysisResult:
     source: str
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# BLIP local image captioning module
+# ──────────────────────────────────────────────────────────────────────────────
+
+def load_image_for_blip(image_source: str | Path) -> Image.Image | None:
+    """
+    Load a PIL image from a URL or a local file path.
+
+    Args:
+        image_source: A URL (http/https) or a local filesystem path.
+
+    Returns:
+        A PIL Image in RGB mode, or None if loading fails.
+    """
+    image_source = str(image_source)
+
+    if image_source.startswith("http://") or image_source.startswith("https://"):
+        try:
+            response = requests.get(image_source, stream=True, timeout=15)
+            response.raise_for_status()
+            return Image.open(response.raw).convert("RGB")
+        except requests.exceptions.RequestException as exc:
+            logging.getLogger(__name__).warning("BLIP: failed to load image from URL '%s': %s", image_source, exc)
+            return None
+
+    if os.path.exists(image_source):
+        try:
+            return Image.open(image_source).convert("RGB")
+        except OSError as exc:
+            logging.getLogger(__name__).warning("BLIP: failed to load image from path '%s': %s", image_source, exc)
+            return None
+
+    logging.getLogger(__name__).warning("BLIP: invalid image source '%s'.", image_source)
+    return None
+
+
+def run_blip_caption(
+    image: Image.Image,
+    processor: Any,
+    model: Any,
+    conditional_text: str = "a photography of",
+) -> dict[str, str]:
+    """
+    Run BLIP captioning (unconditional + conditional) on an already-loaded PIL image.
+
+    Args:
+        image:            A PIL Image (RGB).
+        processor:        The BLIP processor loaded from Hugging Face.
+        model:            The BLIP model loaded from Hugging Face.
+        conditional_text: Prompt prefix for conditional captioning.
+
+    Returns:
+        A dict with keys ``"unconditional"`` and ``"conditional"``.
+    """
+    # Unconditional captioning
+    inputs_unconditional = processor(image, return_tensors="pt")
+    out_unconditional = model.generate(**inputs_unconditional)
+    caption_unconditional = processor.decode(out_unconditional[0], skip_special_tokens=True)
+
+    # Conditional captioning
+    inputs_conditional = processor(image, conditional_text, return_tensors="pt")
+    out_conditional = model.generate(**inputs_conditional)
+    caption_conditional = processor.decode(out_conditional[0], skip_special_tokens=True)
+
+    return {
+        "unconditional": caption_unconditional,
+        "conditional": caption_conditional,
+    }
+
+
+def caption_image_with_blip(
+    image_source: str | Path,
+    processor: Any,
+    model: Any,
+    conditional_text: str = "a photography of",
+) -> str:
+    """
+    High-level helper: load an image from a URL or path, run BLIP captioning,
+    and return the best caption string (unconditional by default).
+
+    Returns an empty string if loading or captioning fails.
+    """
+    image = load_image_for_blip(image_source)
+    if image is None:
+        return ""
+
+    try:
+        captions = run_blip_caption(image, processor, model, conditional_text)
+        return captions.get("unconditional") or ""
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning("BLIP captioning failed: %s", exc)
+        return ""
+
+
+@dataclass(slots=True)
+class BLIPCaptionResult:
+    """Result returned by caption_image_from_upload."""
+    unconditional: str
+    conditional: str
+    success: bool
+    error: str = ""
+
+
+def caption_image_from_upload(
+    file_bytes: bytes,
+    processor: Any,
+    model: Any,
+    conditional_text: str = "a photography of",
+) -> BLIPCaptionResult:
+    """
+    Generate a BLIP caption from raw image bytes coming from an HTML upload form.
+
+    Typical Flask usage::
+
+        from flask import request
+        from services.huggingface import caption_image_from_upload
+
+        file_bytes = request.files["image"].read()
+        result = caption_image_from_upload(file_bytes, processor, model)
+        if result.success:
+            print(result.unconditional)   # best caption
+            print(result.conditional)     # "a photography of …"
+
+    Args:
+        file_bytes:       Raw bytes from ``request.files['image'].read()``.
+        processor:        Pre-loaded BLIP processor.
+        model:            Pre-loaded BLIP model.
+        conditional_text: Prompt prefix for conditional captioning.
+
+    Returns:
+        A :class:`BLIPCaptionResult` dataclass.
+        On failure, ``success`` is False and ``error`` contains the reason.
+    """
+    if not file_bytes:
+        return BLIPCaptionResult(
+            unconditional="",
+            conditional="",
+            success=False,
+            error="Aucun fichier reçu (bytes vides).",
+        )
+
+    try:
+        image = Image.open(BytesIO(file_bytes)).convert("RGB")
+    except Exception as exc:  # noqa: BLE001
+        return BLIPCaptionResult(
+            unconditional="",
+            conditional="",
+            success=False,
+            error=f"Impossible d'ouvrir l'image : {exc}",
+        )
+
+    try:
+        captions = run_blip_caption(image, processor, model, conditional_text)
+    except Exception as exc:  # noqa: BLE001
+        return BLIPCaptionResult(
+            unconditional="",
+            conditional="",
+            success=False,
+            error=f"Erreur BLIP lors du captioning : {exc}",
+        )
+
+    return BLIPCaptionResult(
+        unconditional=captions.get("unconditional") or "",
+        conditional=captions.get("conditional") or "",
+        success=True,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HuggingFaceService  (unchanged public interface, BLIP replaces HF caption API)
+# ──────────────────────────────────────────────────────────────────────────────
+
 class HuggingFaceService:
     def __init__(
         self,
@@ -213,18 +388,32 @@ class HuggingFaceService:
         timeout: int = DEFAULT_TIMEOUT,
         max_tags: int = DEFAULT_MAX_TAGS,
         logger: logging.Logger | None = None,
+        # ── NEW: inject a pre-loaded BLIP processor/model pair ────────────
+        blip_processor: Any = None,
+        blip_model: Any = None,
+        blip_conditional_text: str = "a photography of",
     ) -> None:
         self.api_token = api_token.strip()
         self.classification_model = classification_model.strip() or DEFAULT_CLASSIFICATION_MODEL
         self.detection_model = detection_model.strip() or DEFAULT_DETECTION_MODEL
+        # caption_model is kept for backward-compat but ignored when BLIP is active
         self.caption_model = caption_model.strip()
         self.timeout = max(5, int(timeout))
         self.max_tags = min(max(5, int(max_tags)), 10)
         self.logger = logger or logging.getLogger(__name__)
         self.enabled = bool(self.api_token)
 
+        # BLIP local captioning
+        self.blip_processor = blip_processor
+        self.blip_model = blip_model
+        self.blip_conditional_text = blip_conditional_text
+        self.blip_enabled = blip_processor is not None and blip_model is not None
+
         if not self.enabled:
             self.logger.warning("Hugging Face API token is missing. Upload analysis will use an empty fallback.")
+
+        if self.blip_enabled:
+            self.logger.info("BLIP local captioning is active (replaces HF caption API).")
 
     @property
     def provider_label(self) -> str:
@@ -254,13 +443,14 @@ class HuggingFaceService:
         if not self.enabled:
             return self._fallback_result()
 
-        # Classification and object detection are both available on the current Hugging Face router.
+        # ── Classification ────────────────────────────────────────────────
         try:
             classification_payload = self._query_model(self.classification_model, image_bytes, content_type)
             tags = self._parse_classification_tags(classification_payload)
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Hugging Face classification failed for '%s': %s", path.name, exc)
 
+        # ── Object detection ──────────────────────────────────────────────
         try:
             detection_payload = self._query_model(self.detection_model, image_bytes, content_type)
             detected_objects = self._parse_detection_tags(detection_payload)
@@ -269,12 +459,22 @@ class HuggingFaceService:
 
         tags = self._merge_tags(detected_objects, tags)
 
-        try:
-            if self.caption_model:
+        # ── Captioning: BLIP local model (preferred) or HF API fallback ──
+        if self.blip_enabled:
+            blip_result = caption_image_from_upload(
+                image_bytes, self.blip_processor, self.blip_model, self.blip_conditional_text
+            )
+            if blip_result.success:
+                description = blip_result.unconditional
+                self.logger.debug("BLIP caption for '%s': %s", path.name, description)
+            else:
+                self.logger.warning("BLIP captioning failed for '%s': %s", path.name, blip_result.error)
+        elif self.caption_model:
+            try:
                 caption_payload = self._query_model(self.caption_model, image_bytes, content_type)
                 description = self._parse_caption(caption_payload)
-        except Exception as exc:  # noqa: BLE001
-            self.logger.warning("Hugging Face captioning failed for '%s': %s", path.name, exc)
+            except Exception as exc:  # noqa: BLE001
+                self.logger.warning("Hugging Face captioning failed for '%s': %s", path.name, exc)
 
         if description:
             tags = self._merge_tags(tags, self._caption_keywords(description))
@@ -474,7 +674,18 @@ class HuggingFaceService:
         )
 
 
-def build_huggingface_service(config: dict[str, object], logger: logging.Logger | None = None) -> HuggingFaceService:
+def build_huggingface_service(
+    config: dict[str, object],
+    logger: logging.Logger | None = None,
+    blip_processor: Any = None,
+    blip_model: Any = None,
+) -> HuggingFaceService:
+    """
+    Factory that builds a HuggingFaceService from a config dict.
+
+    Pass ``blip_processor`` and ``blip_model`` (pre-loaded BLIP objects) to
+    activate local BLIP captioning instead of the HF caption API.
+    """
     return HuggingFaceService(
         api_token=str(config.get("HUGGINGFACE_API_TOKEN", "")),
         classification_model=str(config.get("HUGGINGFACE_CLASSIFICATION_MODEL", DEFAULT_CLASSIFICATION_MODEL)),
@@ -483,4 +694,7 @@ def build_huggingface_service(config: dict[str, object], logger: logging.Logger 
         timeout=int(config.get("HUGGINGFACE_TIMEOUT", DEFAULT_TIMEOUT)),
         max_tags=int(config.get("HUGGINGFACE_MAX_TAGS", DEFAULT_MAX_TAGS)),
         logger=logger,
+        blip_processor=blip_processor,
+        blip_model=blip_model,
+        blip_conditional_text=str(config.get("BLIP_CONDITIONAL_TEXT", "a photography of")),
     )
