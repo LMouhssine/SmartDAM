@@ -33,6 +33,15 @@ IRRELEVANT_TAGS = {
     # Abstract / texture ResNet artefacts
     "pattern", "texture", "surface", "background", "abstract",
     "web site", "website", "web page", "screen",
+    # Animals / wildlife — food-styling props (garnishes, plating, market
+    # backdrops) over-trigger DETR's literal COCO "bird" class and noisy
+    # low-confidence ImageNet bird-species predictions. "bird" itself is the
+    # root cause of the bug where it showed up on nearly every upload: DETR
+    # returns it on food photography far more often than it should, and it
+    # was never excluded here (unlike the coral/rock/mineral categories
+    # above, which were already patched for the same kind of false positive).
+    "bird", "birds", "finch", "bunting", "jay", "magpie", "chickadee",
+    "sparrow", "hummingbird", "songbird",
 }
 CAPTION_STOPWORDS = {
     "a",
@@ -446,6 +455,7 @@ class HuggingFaceService:
         # ── Classification ────────────────────────────────────────────────
         try:
             classification_payload = self._query_model(self.classification_model, image_bytes, content_type)
+            self.logger.debug("Raw classification payload for '%s': %s", path.name, classification_payload)
             tags = self._parse_classification_tags(classification_payload)
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Hugging Face classification failed for '%s': %s", path.name, exc)
@@ -453,6 +463,7 @@ class HuggingFaceService:
         # ── Object detection ──────────────────────────────────────────────
         try:
             detection_payload = self._query_model(self.detection_model, image_bytes, content_type)
+            self.logger.debug("Raw detection payload for '%s': %s", path.name, detection_payload)
             detected_objects = self._parse_detection_tags(detection_payload)
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("Hugging Face object detection failed for '%s': %s", path.name, exc)
@@ -558,10 +569,15 @@ class HuggingFaceService:
             if not label:
                 continue
 
-            for chunk in label.split(","):
-                cleaned = self._clean_tag(chunk)
-                if cleaned:
-                    tags.append(cleaned)
+            # ImageNet synset labels are often multiple comma-separated
+            # synonyms for the same class (e.g. "indigo bunting, indigo
+            # finch, indigo bird, Passerina cyanea"). Only keep the first
+            # (most specific/canonical) synonym instead of fanning a single
+            # weak prediction out into several near-duplicate tags.
+            first_synonym = label.split(",", 1)[0]
+            cleaned = self._clean_tag(first_synonym)
+            if cleaned:
+                tags.append(cleaned)
 
         return self._limit_tags(tags)
 
