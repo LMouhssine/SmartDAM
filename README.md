@@ -2,8 +2,6 @@
 
 SmartDAM est une application Flask de gestion d'assets visuels orientée photographie food et restauration. Elle permet d'importer des images, de les analyser automatiquement par IA (HuggingFace), et de les retrouver dans une galerie filtrable pensée pour une démonstration produit.
 
-Support de présentation : [LIEN_PRESENTATION]
-
 ## Fonctionnalités
 
 ### Gestion des images
