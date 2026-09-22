@@ -26,12 +26,11 @@ SmartDAM est une application Flask de gestion d'assets visuels orientée photogr
 - Visualisation du processus d'analyse pendant l'upload (état par fichier : analyse en cours → tags obtenus)
 - Fallback local si HuggingFace est indisponible
 
-### Recherche et filtres
+### Recherche
 
 - Recherche par mots-clés sur tags et description
 - **Recherche dynamique** : les résultats se mettent à jour en temps réel (400 ms de debounce sur le champ texte)
 - **Recherche vocale** : bouton micro à côté de la barre de recherche, dicte une requête via l'API Web Speech native du navigateur (`fr-FR`, sans dépendance cloud), masqué automatiquement si le navigateur ne la supporte pas
-- Panneau de filtres (personnes, catégorie food, environnement, orientation, favoris, tri) — s'applique via le bouton "Appliquer" (rechargement de la liste avec indicateur de chargement)
 - Surbrillance des termes recherchés dans les cartes de la galerie
 - Barre de tags fréquents en haut de la galerie (cliquables)
 
@@ -39,7 +38,6 @@ SmartDAM est une application Flask de gestion d'assets visuels orientée photogr
 
 - Bouton étoile sur chaque carte de la galerie
 - Bouton étoile dans le modal détail (synchronisé avec la carte)
-- Filtre "Favoris uniquement" dans le panneau de filtres
 
 ### Tags
 
@@ -214,13 +212,12 @@ Le script est idempotent : si un fichier de démonstration existe déjà en base
 3. Connectez-vous avec le compte admin (bouton "Connexion" dans la barre de navigation).
 4. Ouvrez la galerie — observez la barre de tags fréquents et les stats.
 5. Tapez dans la barre de recherche, ou cliquez sur le bouton micro et dictez une requête — les résultats se filtrent en temps réel.
-6. Changez un filtre (personnes, food, orientation) puis cliquez sur "Appliquer" — les résultats s'actualisent.
-7. Cliquez sur une image — observez les tags en français, la description et les modèles IA utilisés.
-8. Cliquez sur l'icône crayon à côté du titre pour renommer l'image.
-9. Cliquez sur un tag dans le modal — la galerie se filtre sur ce tag.
-10. Cliquez sur "Réanalyser" — observez la mise à jour des tags et de la description.
-11. Ajoutez un favori via l'étoile, puis filtrez par "Favoris uniquement".
-12. Importez une nouvelle image — suivez la progression par fichier et l'affichage des tags obtenus.
+6. Cliquez sur une image — observez les tags en français, la description et les modèles IA utilisés.
+7. Cliquez sur l'icône crayon à côté du titre pour renommer l'image.
+8. Cliquez sur un tag dans le modal — la galerie se filtre sur ce tag.
+9. Cliquez sur "Réanalyser" — observez la mise à jour des tags et de la description.
+10. Ajoutez un favori via l'étoile.
+11. Importez une nouvelle image — suivez la progression par fichier et l'affichage des tags obtenus.
 
 ## Qualité et sécurité
 

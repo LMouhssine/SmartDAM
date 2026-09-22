@@ -422,24 +422,6 @@ a {
     pointer-events: none;
 }
 
-.filter-panel-section {
-    margin-bottom: 1.25rem;
-}
-
-.filter-form {
-    padding: 1.1rem;
-    border: 1px solid var(--app-border);
-    border-radius: var(--app-radius);
-    background: var(--app-surface);
-    box-shadow: var(--app-shadow-soft);
-}
-
-.filter-form__actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
 .top-tags-bar {
     display: flex;
     flex-wrap: wrap;
