@@ -17,7 +17,12 @@
                     </div>
                     <div class="col-lg-5">
                         <div class="detail-panel">
-                            <h3 class="detail-title" id="detailImageTitle">Image</h3>
+                            <div class="detail-title-row">
+                                <h3 class="detail-title" id="detailImageTitle">Image</h3>
+                                <button type="button" class="detail-rename-trigger" id="detailImageRename" aria-label="Renommer l'image" title="Renommer l'image">&#9998;</button>
+                                <input type="text" class="form-control d-none detail-rename-input" id="detailImageRenameInput" maxlength="255">
+                            </div>
+                            <p class="d-none detail-reanalyze-status" id="detailRenameStatus"></p>
                             <div class="detail-description mb-4">
                                 <p class="section-label mb-1">Description</p>
                                 <p class="mb-0" id="detailImageDescription">Aucune description disponible.</p>

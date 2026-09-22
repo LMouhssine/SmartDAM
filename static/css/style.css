@@ -614,10 +614,42 @@ mark.search-highlight {
     aspect-ratio: 4 / 3;
 }
 
-.detail-title {
+.detail-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     margin-bottom: 0.5rem;
+}
+
+.detail-title {
+    margin: 0;
     font-size: 1.25rem;
     font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.detail-rename-trigger {
+    flex-shrink: 0;
+    padding: 0.1rem 0.35rem;
+    font-size: 1rem;
+    line-height: 1;
+    border: none;
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.detail-rename-trigger:hover {
+    color: var(--app-accent);
+}
+
+.detail-rename-input {
+    flex: 1;
+    min-width: 0;
 }
 
 .detail-list {

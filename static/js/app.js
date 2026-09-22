@@ -177,6 +177,79 @@
         });
     };
 
+    const bindDetailRenameButton = () => {
+        const trigger = detailModalElement?.querySelector("#detailImageRename");
+        const titleEl = detailModalElement?.querySelector("#detailImageTitle");
+        const inputEl = detailModalElement?.querySelector("#detailImageRenameInput");
+        const status = detailModalElement?.querySelector("#detailRenameStatus");
+        if (!trigger || !titleEl || !inputEl) return;
+
+        const enterEditMode = () => {
+            inputEl.value = titleEl.textContent || "";
+            titleEl.classList.add("d-none");
+            trigger.classList.add("d-none");
+            inputEl.classList.remove("d-none");
+            inputEl.focus();
+            inputEl.select();
+        };
+
+        const exitEditMode = () => {
+            inputEl.classList.add("d-none");
+            titleEl.classList.remove("d-none");
+            trigger.classList.remove("d-none");
+        };
+
+        const submitRename = async () => {
+            const url = trigger.dataset.renameUrl;
+            const imageId = trigger.dataset.imageId;
+            const newName = inputEl.value.trim();
+
+            if (!url || !newName || newName === titleEl.textContent) {
+                exitEditMode();
+                return;
+            }
+
+            try {
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: withCsrfHeader({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ filename: newName }),
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || "Le renommage a échoué.");
+
+                titleEl.textContent = data.original_filename;
+
+                if (imageId) {
+                    const voirBtn = document.querySelector(`[data-image-id="${imageId}"][data-bs-toggle="modal"]`);
+                    if (voirBtn) {
+                        voirBtn.dataset.imageTitle = data.original_filename;
+                        const card = voirBtn.closest(".gallery-card");
+                        const cardTitle = card?.querySelector(".gallery-card__title");
+                        if (cardTitle) cardTitle.textContent = data.original_filename;
+                    }
+                }
+
+                showInlineStatus(status, "Nom mis à jour.", false);
+            } catch (err) {
+                showInlineStatus(status, err.message || "Le renommage a échoué.", true);
+            } finally {
+                exitEditMode();
+            }
+        };
+
+        trigger.addEventListener("click", enterEditMode);
+        inputEl.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                submitRename();
+            } else if (event.key === "Escape") {
+                exitEditMode();
+            }
+        });
+        inputEl.addEventListener("blur", submitRename);
+    };
+
     const bindLoadingForms = () => {
         document.querySelectorAll("[data-loading-form]").forEach((form) => {
             form.addEventListener("submit", (event) => {
@@ -425,6 +498,12 @@
             detailReanalyze.dataset.reanalyzeUrl = trigger.dataset.imageReanalyzeUrl || "";
             detailReanalyze.dataset.imageId = trigger.dataset.imageId || "";
         }
+
+        const detailRename = detailModalElement.querySelector("#detailImageRename");
+        if (detailRename) {
+            detailRename.dataset.renameUrl = trigger.dataset.imageRenameUrl || "";
+            detailRename.dataset.imageId = trigger.dataset.imageId || "";
+        }
     };
 
     const bindDetailModal = () => {
@@ -568,6 +647,7 @@
     bindFavoriteToggles();
     bindDetailFavoriteButton();
     bindDetailReanalyzeButton();
+    bindDetailRenameButton();
     bindDynamicSearch();
     bindTagSearch();
 })();

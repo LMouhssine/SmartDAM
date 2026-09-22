@@ -668,6 +668,40 @@ def register_routes(app: Flask) -> None:
         referrer_url = clean_redirect_target(request.referrer)
         return redirect(next_url or referrer_url or url_for("index"))
 
+    @app.post("/images/<int:image_id>/rename")
+    @login_required
+    def rename_image(image_id: int):
+        image = ImageAsset.query.get_or_404(image_id)
+        payload = request.get_json(silent=True) or {}
+        raw_name = str(payload.get("filename", "")).strip()
+
+        if not raw_name:
+            return {"error": "Le nom ne peut pas être vide."}, 400
+        if "/" in raw_name or "\\" in raw_name:
+            return {"error": "Le nom ne peut pas contenir de séparateur de chemin."}, 400
+
+        original_extension = Path(image.original_filename).suffix.lower()
+        candidate = Path(raw_name)
+        candidate_extension = candidate.suffix.lower()
+
+        if candidate_extension and candidate_extension != original_extension:
+            return {"error": "Impossible de changer l'extension du fichier."}, 400
+
+        new_filename = candidate.stem + original_extension if candidate_extension else raw_name + original_extension
+
+        if len(new_filename) > 255:
+            return {"error": "Le nom est trop long (255 caractères maximum)."}, 400
+
+        try:
+            image.original_filename = new_filename
+            db.session.commit()
+            app.logger.info("Image id=%s renamed to '%s'.", image_id, new_filename)
+            return {"id": image_id, "original_filename": new_filename}
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Rename failed for image_id=%s.", image_id)
+            return {"error": "Erreur lors de l'enregistrement du nouveau nom."}, 500
+
     @app.post("/images/<int:image_id>/favorite")
     @login_required
     def toggle_favorite(image_id: int):
