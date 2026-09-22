@@ -620,6 +620,65 @@
         });
     };
 
+    // ── Voice search (native Web Speech API, no cloud dependency) ──────────────
+
+    const bindVoiceSearch = () => {
+        const micButton = document.getElementById("voice-search-btn");
+        const globalSearch = document.getElementById("global-search");
+        if (!micButton || !globalSearch) return;
+
+        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionCtor) {
+            micButton.hidden = true;
+            return;
+        }
+
+        const recognition = new SpeechRecognitionCtor();
+        recognition.lang = "fr-FR";
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        let isListening = false;
+
+        recognition.addEventListener("start", () => {
+            isListening = true;
+            micButton.classList.add("is-listening");
+        });
+
+        const stopListeningUi = () => {
+            isListening = false;
+            micButton.classList.remove("is-listening");
+        };
+
+        recognition.addEventListener("end", stopListeningUi);
+
+        recognition.addEventListener("result", (event) => {
+            const transcript = event.results?.[0]?.[0]?.transcript || "";
+            if (transcript) {
+                globalSearch.value = transcript;
+                globalSearch.dispatchEvent(new Event("input"));
+            }
+        });
+
+        recognition.addEventListener("error", (event) => {
+            stopListeningUi();
+            if (event.error === "no-speech" || event.error === "aborted") return;
+            console.error("Voice search error:", event.error);
+        });
+
+        micButton.addEventListener("click", () => {
+            if (isListening) {
+                recognition.stop();
+                return;
+            }
+            try {
+                recognition.start();
+            } catch (_err) {
+                // start() throws if already running — ignore.
+            }
+        });
+    };
+
     // ── Tag-click search ─────────────────────────────────────────────────────
 
     const bindTagSearch = () => {
@@ -650,4 +709,5 @@
     bindDetailRenameButton();
     bindDynamicSearch();
     bindTagSearch();
+    bindVoiceSearch();
 })();
