@@ -290,6 +290,54 @@ TAG_FR_TRANSLATIONS: dict[str, str] = {
     "chef": "chef cuisinier",
     "cook": "cuisinier",
     "waiter": "serveur",
+    # ── Mots courants des légendes BLIP (couleurs, matières, préparations) ──
+    # Les mots-clés de légende sont un vocabulaire ouvert (n'importe quel mot
+    # d'une phrase générée) : cette liste ne peut pas être exhaustive, mais
+    # couvre les termes les plus probables sur des photos culinaires pour
+    # limiter le nombre de tags perdus par le filtrage strict (voir
+    # _translate_tag — un tag sans traduction est désormais retiré plutôt
+    # qu'affiché en anglais).
+    "wooden": "en bois",
+    "wood": "bois",
+    "white": "blanc",
+    "black": "noir",
+    "red": "rouge",
+    "green": "vert",
+    "blue": "bleu",
+    "yellow": "jaune",
+    "brown": "marron",
+    "pink": "rose",
+    "glass": "verre",
+    "metal": "métal",
+    "ceramic": "céramique",
+    "fresh": "frais",
+    "grilled": "grillé",
+    "roasted": "rôti",
+    "baked": "cuit au four",
+    "fried": "frit",
+    "sliced": "tranché",
+    "chopped": "haché",
+    "homemade": "fait maison",
+    "delicious": "délicieux",
+    "tasty": "savoureux",
+    "healthy": "sain",
+    "organic": "bio",
+    "raw": "cru",
+    "cooked": "cuit",
+    "hot": "chaud",
+    "cold": "froid",
+    "small": "petit",
+    "large": "grand",
+    "big": "grand",
+    "close": "gros plan",
+    "view": "vue",
+    "top": "dessus",
+    "colorful": "coloré",
+    "vegetables": "légumes",
+    "fruits": "fruits",
+    "tomatoes": "tomates",
+    "cookies": "biscuits",
+    "strawberries": "fraises",
 }
 
 
@@ -578,8 +626,9 @@ class HuggingFaceService:
 
         # People detection must run on English tags (before translation)
         has_people = self._detect_people(tags, description)
-        # Translate tags to French
-        tags = [self._translate_tag(t) for t in tags]
+        # Translate tags to French — any tag without a translation is dropped
+        # (see _translate_tag) rather than left in English.
+        tags = [translated for tag in tags if (translated := self._translate_tag(tag)) is not None]
         # Build French description if no caption was generated
         if not description and tags:
             description = self._build_description(tags)
@@ -730,21 +779,22 @@ class HuggingFaceService:
 
         return f"Éléments détectés : {', '.join(priority_tags[:-1])} et {priority_tags[-1]}."
 
-    def _translate_tag(self, tag: str) -> str:
-        # If a tag has no French entry, we keep it in English rather than
-        # dropping it: dropping would silently remove metadata that might
-        # still be correct (and search for that term would find nothing),
-        # trading one silent-failure mode for another. A visible English tag
-        # plus a log line is exactly how the "bird" bug was originally
-        # caught — visible + logged beats invisible. Logging every miss
-        # makes coverage gaps show up immediately going forward.
+    def _translate_tag(self, tag: str) -> str | None:
+        # A tag with no French entry is dropped rather than shown in English:
+        # BLIP caption keywords in particular are open-vocabulary (any word
+        # from a generated English sentence), so a curated dict can never
+        # have 100% coverage. Silently keeping the English word was the
+        # previous behavior, but it means an untranslated tag can still slip
+        # through — dropping it is the only way to guarantee no AI-generated
+        # tag is ever displayed in English. Still logged so coverage gaps
+        # are visible and can be added to TAG_FR_TRANSLATIONS over time.
         translated = TAG_FR_TRANSLATIONS.get(tag)
         if translated is None:
             self.logger.warning(
-                "No French translation for tag '%s' — displaying in English. Add it to TAG_FR_TRANSLATIONS.",
+                "No French translation for tag '%s' — dropping it. Add it to TAG_FR_TRANSLATIONS.",
                 tag,
             )
-            return tag
+            return None
         return translated
 
     def _clean_tag(self, value: str) -> str:

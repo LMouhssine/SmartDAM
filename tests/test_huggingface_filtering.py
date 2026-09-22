@@ -78,3 +78,9 @@ def test_legitimate_food_tags_survive_the_blocklist():
     service = make_service()
     for label in ("chicken", "poultry", "plate", "kitchen", "pizza"):
         assert service._clean_tag(label) == label
+
+
+def test_translate_tag_drops_untranslated_words_instead_of_showing_english():
+    service = make_service()
+    assert service._translate_tag("chicken") == "poulet"
+    assert service._translate_tag("some-made-up-word-not-in-the-dict") is None

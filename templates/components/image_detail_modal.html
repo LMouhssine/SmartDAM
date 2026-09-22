@@ -58,6 +58,11 @@
                             <div class="detail-tags">
                                 <p class="section-label mb-2">Tags</p>
                                 <div class="tag-row" id="detailImageTags"></div>
+                                <form class="detail-tag-add" id="detailTagAddForm">
+                                    <input type="text" class="form-control form-control-sm" id="detailTagInput" placeholder="Ajouter un tag" maxlength="60" autocomplete="off">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Ajouter</button>
+                                </form>
+                                <p class="d-none detail-reanalyze-status" id="detailTagStatus"></p>
                             </div>
 
                             <div class="detail-actions">

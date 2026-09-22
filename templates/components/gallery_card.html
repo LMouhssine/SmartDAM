@@ -57,6 +57,8 @@
                 data-image-favorite-url="{{ url_for('toggle_favorite', image_id=image.id) }}"
                 data-image-reanalyze-url="{{ url_for('reanalyze_image', image_id=image.id) }}"
                 data-image-rename-url="{{ url_for('rename_image', image_id=image.id) }}"
+                data-image-tag-add-url="{{ url_for('add_image_tag', image_id=image.id) }}"
+                data-image-tag-remove-url="{{ url_for('remove_image_tag', image_id=image.id) }}"
                 data-image-description="{{ image.description or 'Aucune description disponible.' }}"
                 data-image-created="{{ image.created_at.strftime('%d/%m/%Y à %H:%M') }}"
                 data-image-tags="{{ image.tag_list|tojson|forceescape }}"

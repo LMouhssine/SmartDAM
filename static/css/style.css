@@ -852,6 +852,46 @@ mark.search-highlight {
     margin-top: 1rem;
 }
 
+.tag-badge__label {
+    text-decoration: none;
+    cursor: pointer;
+    color: inherit;
+}
+
+.tag-badge__label:hover {
+    text-decoration: underline;
+}
+
+.tag-badge__remove {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.3rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    opacity: 0.55;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.tag-badge__remove:hover {
+    opacity: 1;
+}
+
+.detail-tag-add {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.detail-tag-add .form-control {
+    flex: 1;
+    min-width: 0;
+}
+
 .detail-actions {
     display: flex;
     flex-wrap: wrap;

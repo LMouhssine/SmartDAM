@@ -50,6 +50,9 @@
         if (spinner) spinner.classList.remove("d-none");
     };
 
+    // Only ever used for the detail modal's #detailImageTags — chips are
+    // removable there (unlike the server-rendered, read-only gallery card
+    // tags), so each one gets a small "x" alongside the click-to-search label.
     const renderTagsAsLinks = (container, tagsJson) => {
         container.innerHTML = "";
         let tags = [];
@@ -60,12 +63,25 @@
         }
         const colors = ["tag-badge--c0", "tag-badge--c1", "tag-badge--c2", "tag-badge--c3", "tag-badge--c4", "tag-badge--c5"];
         tags.forEach((tag, i) => {
-            const link = document.createElement("a");
-            link.className = `tag-badge tag-badge--link ${colors[i % colors.length]}`;
-            link.textContent = tag;
-            link.href = "#";
-            link.dataset.tagSearch = tag;
-            container.appendChild(link);
+            const chip = document.createElement("span");
+            chip.className = `tag-badge ${colors[i % colors.length]}`;
+
+            const label = document.createElement("a");
+            label.className = "tag-badge__label";
+            label.textContent = tag;
+            label.href = "#";
+            label.dataset.tagSearch = tag;
+            chip.appendChild(label);
+
+            const removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "tag-badge__remove";
+            removeBtn.dataset.tagRemove = tag;
+            removeBtn.setAttribute("aria-label", `Retirer le tag ${tag}`);
+            removeBtn.textContent = "×";
+            chip.appendChild(removeBtn);
+
+            container.appendChild(chip);
         });
     };
 
@@ -248,6 +264,75 @@
             }
         });
         inputEl.addEventListener("blur", submitRename);
+    };
+
+    // Manual tag add/remove in the detail modal. Uses event delegation on
+    // the modal element (not on individual tag chips) because tags are
+    // re-rendered on every open/update — binding to the chips themselves
+    // would silently stop working after the first re-render.
+    const bindDetailTagEditor = () => {
+        const tagsContainer = detailModalElement?.querySelector("#detailImageTags");
+        const addForm = detailModalElement?.querySelector("#detailTagAddForm");
+        const addInput = detailModalElement?.querySelector("#detailTagInput");
+        const status = detailModalElement?.querySelector("#detailTagStatus");
+        if (!tagsContainer || !addForm || !addInput) return;
+
+        const syncCardTagsDataset = (imageId, tags) => {
+            if (!imageId) return;
+            const voirBtn = document.querySelector(`[data-image-id="${imageId}"][data-bs-toggle="modal"]`);
+            if (voirBtn) voirBtn.dataset.imageTags = JSON.stringify(tags);
+        };
+
+        addForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const url = tagsContainer.dataset.tagAddUrl;
+            const imageId = tagsContainer.dataset.imageId;
+            const tag = addInput.value.trim();
+            if (!url || !tag) return;
+
+            try {
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: withCsrfHeader({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ tag }),
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || "L'ajout du tag a échoué.");
+
+                renderTagsAsLinks(tagsContainer, JSON.stringify(data.tags || []));
+                syncCardTagsDataset(imageId, data.tags || []);
+                addInput.value = "";
+                showInlineStatus(status, "Tag ajouté.", false);
+            } catch (err) {
+                showInlineStatus(status, err.message || "L'ajout du tag a échoué.", true);
+            }
+        });
+
+        tagsContainer.addEventListener("click", async (event) => {
+            const removeBtn = event.target.closest("[data-tag-remove]");
+            if (!removeBtn) return;
+
+            const url = tagsContainer.dataset.tagRemoveUrl;
+            const imageId = tagsContainer.dataset.imageId;
+            const tag = removeBtn.dataset.tagRemove;
+            if (!url || !tag) return;
+
+            try {
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: withCsrfHeader({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ tag }),
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || "La suppression du tag a échoué.");
+
+                renderTagsAsLinks(tagsContainer, JSON.stringify(data.tags || []));
+                syncCardTagsDataset(imageId, data.tags || []);
+                showInlineStatus(status, "Tag retiré.", false);
+            } catch (err) {
+                showInlineStatus(status, err.message || "La suppression du tag a échoué.", true);
+            }
+        });
     };
 
     const bindLoadingForms = () => {
@@ -481,7 +566,12 @@
             detailDelete.dataset.deleteUrl = trigger.dataset.imageDeleteUrl || "";
             detailDelete.dataset.imageTitle = trigger.dataset.imageTitle || "image";
         }
-        if (detailTags) renderTagsAsLinks(detailTags, trigger.dataset.imageTags);
+        if (detailTags) {
+            renderTagsAsLinks(detailTags, trigger.dataset.imageTags);
+            detailTags.dataset.tagAddUrl = trigger.dataset.imageTagAddUrl || "";
+            detailTags.dataset.tagRemoveUrl = trigger.dataset.imageTagRemoveUrl || "";
+            detailTags.dataset.imageId = trigger.dataset.imageId || "";
+        }
 
         const detailFavorite = detailModalElement.querySelector("#detailImageFavorite");
         const detailFavoriteLabel = detailModalElement.querySelector("#detailFavoriteLabel");
@@ -707,6 +797,7 @@
     bindDetailFavoriteButton();
     bindDetailReanalyzeButton();
     bindDetailRenameButton();
+    bindDetailTagEditor();
     bindDynamicSearch();
     bindTagSearch();
     bindVoiceSearch();

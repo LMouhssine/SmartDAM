@@ -702,6 +702,49 @@ def register_routes(app: Flask) -> None:
             app.logger.exception("Rename failed for image_id=%s.", image_id)
             return {"error": "Erreur lors de l'enregistrement du nouveau nom."}, 500
 
+    @app.post("/images/<int:image_id>/tags/add")
+    @login_required
+    def add_image_tag(image_id: int):
+        image = ImageAsset.query.get_or_404(image_id)
+        payload = request.get_json(silent=True) or {}
+        raw_tag = str(payload.get("tag", "")).strip()
+
+        if not raw_tag:
+            return {"error": "Le tag ne peut pas être vide."}, 400
+        if len(raw_tag) > 60:
+            return {"error": "Le tag est trop long (60 caractères maximum)."}, 400
+
+        try:
+            image.set_tags(image.tag_list + [raw_tag])
+            db.session.commit()
+            app.logger.info("Tag '%s' added to image_id=%s.", raw_tag, image_id)
+            return {"id": image_id, "tags": image.tag_list}
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Failed to add tag for image_id=%s.", image_id)
+            return {"error": "Erreur lors de l'ajout du tag."}, 500
+
+    @app.post("/images/<int:image_id>/tags/remove")
+    @login_required
+    def remove_image_tag(image_id: int):
+        image = ImageAsset.query.get_or_404(image_id)
+        payload = request.get_json(silent=True) or {}
+        raw_tag = str(payload.get("tag", "")).strip()
+
+        if not raw_tag:
+            return {"error": "Le tag ne peut pas être vide."}, 400
+
+        try:
+            remaining_tags = [tag for tag in image.tag_list if tag.lower() != raw_tag.lower()]
+            image.set_tags(remaining_tags)
+            db.session.commit()
+            app.logger.info("Tag '%s' removed from image_id=%s.", raw_tag, image_id)
+            return {"id": image_id, "tags": image.tag_list}
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Failed to remove tag for image_id=%s.", image_id)
+            return {"error": "Erreur lors de la suppression du tag."}, 500
+
     @app.post("/images/<int:image_id>/favorite")
     @login_required
     def toggle_favorite(image_id: int):
