@@ -3,8 +3,8 @@
        native Bootstrap utilities (.text-primary, .btn-primary, form-check
        checked states, focus rings) match the redesign without having to
        override every Bootstrap component individually. */
-    --bs-primary: #d9642c;
-    --bs-primary-rgb: 217, 100, 44;
+    --bs-primary: #d9541c;
+    --bs-primary-rgb: 217, 84, 28;
 
     /* Warm food-tech palette */
     --app-bg: #fbf6ee;
@@ -14,12 +14,19 @@
     --app-border-strong: #d9c9a8;
     --app-text: #2b221a;
     --app-text-muted: #7a6c58;
-    --app-accent: #d9642c;
-    --app-accent-hover: #bd5120;
-    --app-accent-soft: #f6e2d3;
-    --app-secondary: #6b7b4c;
-    --app-secondary-soft: #e8eedc;
-    --app-favorite: #e3a33b;
+    --app-accent: #d9541c;
+    --app-accent-hover: #b3400e;
+    --app-accent-soft: #f6ddc9;
+    --app-secondary: #5c7a3f;
+    --app-secondary-soft: #e5edda;
+    --app-favorite: #dd9a2e;
+    /* Dark anchor tone — used deliberately on the navbar only (not a full
+       dark theme/toggle) for a stronger, more "designed" contrast against
+       the warm light content area. */
+    --app-ink: #241a12;
+    --app-ink-text: #fbf6ee;
+    --app-ink-text-muted: rgba(251, 246, 238, 0.68);
+    --app-ink-border: rgba(251, 246, 238, 0.16);
     --app-radius: 18px;
     --app-radius-sm: 12px;
     --app-shadow-soft: 0 2px 10px rgba(43, 34, 26, 0.06);
@@ -58,9 +65,8 @@ a {
     position: sticky;
     top: 0;
     z-index: 1030;
-    background: rgba(251, 246, 238, 0.92);
-    backdrop-filter: blur(6px);
-    border-bottom: 1px solid var(--app-border);
+    background: var(--app-ink);
+    border-bottom: 1px solid var(--app-ink-border);
 }
 
 .topbar {
@@ -90,7 +96,7 @@ a {
     width: 2.5rem;
     height: 2.5rem;
     border-radius: 0.85rem;
-    background: linear-gradient(155deg, var(--app-accent), #b3491a);
+    background: linear-gradient(155deg, var(--app-accent), var(--app-accent-hover));
     color: #fff;
     font-family: var(--font-display);
     font-size: 0.85rem;
@@ -102,7 +108,20 @@ a {
     font-family: var(--font-display);
     font-size: 1.1rem;
     font-weight: 600;
-    color: var(--app-text);
+    color: var(--app-ink-text);
+}
+
+.topbar .btn-outline-secondary {
+    border-color: var(--app-ink-border);
+    color: var(--app-ink-text);
+    background: transparent;
+}
+
+.topbar .btn-outline-secondary:hover,
+.topbar .btn-outline-secondary:focus {
+    background: rgba(251, 246, 238, 0.12);
+    border-color: rgba(251, 246, 238, 0.4);
+    color: var(--app-ink-text);
 }
 
 .topbar-search {
@@ -894,7 +913,7 @@ mark.search-highlight {
 }
 
 .topbar__auth-user {
-    color: var(--app-text-muted);
+    color: var(--app-ink-text-muted);
     font-size: 0.86rem;
 }
 
