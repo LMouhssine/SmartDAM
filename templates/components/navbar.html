@@ -23,9 +23,23 @@
                 <button type="submit" class="btn btn-primary">Rechercher</button>
             </form>
 
-            <button type="button" class="btn btn-primary topbar__upload" data-bs-toggle="modal" data-bs-target="#uploadModal">
-                Importer
-            </button>
+            {% if current_user.is_authenticated %}
+                <button type="button" class="btn btn-primary topbar__upload" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                    Importer
+                </button>
+            {% endif %}
+
+            <div class="topbar__auth">
+                {% if current_user.is_authenticated %}
+                    <span class="topbar__auth-user">{{ current_user.username }}</span>
+                    <form method="post" action="{{ url_for('logout') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Déconnexion</button>
+                    </form>
+                {% else %}
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('login') }}">Connexion</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
 </header>

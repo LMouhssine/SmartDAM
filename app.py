@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 import os
 import re as _re
+import secrets
 import tempfile
+import time
 from collections import Counter
 from io import BytesIO
 from pathlib import Path
@@ -11,11 +13,15 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, has_request_context, redirect, render_template, request, send_file, url_for
+from flask_login import current_user, login_required, login_user, logout_user
+from flask_wtf import CSRFProtect
 from markupsafe import Markup
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
+from auth import ADMIN_USER, login_manager, verify_credentials
 from models import ImageAsset, db, ensure_image_asset_schema
 from services.huggingface import AnalysisResult, build_huggingface_service
 from services.image_processing import InvalidImageError, process_image_upload
@@ -36,13 +42,26 @@ def env_flag(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _resolve_secret_key(logger: logging.Logger) -> str:
+    secret_key = os.getenv("FLASK_SECRET_KEY", "").strip()
+    if secret_key and secret_key != "change-me":
+        return secret_key
+
+    logger.warning(
+        "FLASK_SECRET_KEY is not set (or left at the placeholder 'change-me'). Generating a random key for this "
+        "process — sessions and CSRF tokens will NOT survive a restart. Set FLASK_SECRET_KEY in your .env for "
+        "any persistent/production deployment."
+    )
+    return secrets.token_hex(32)
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     upload_folder = Path(os.getenv("UPLOAD_FOLDER", BASE_DIR / "uploads")).resolve()
     upload_folder.mkdir(parents=True, exist_ok=True)
 
     app.config.update(
-        SECRET_KEY=os.getenv("FLASK_SECRET_KEY", "smartdam-dev-secret"),
+        SECRET_KEY=_resolve_secret_key(logging.getLogger(__name__)),
         SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'smartdam.db'}"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         MAX_CONTENT_LENGTH=int(os.getenv("MAX_CONTENT_LENGTH", DEFAULT_MAX_CONTENT_LENGTH)),
@@ -70,6 +89,8 @@ def create_app() -> Flask:
     app.logger.setLevel(getattr(logging, app.config["LOG_LEVEL"], logging.INFO))
 
     db.init_app(app)
+    login_manager.init_app(app)
+    CSRFProtect(app)
     app.extensions["smartdam.storage"] = build_storage_manager(app.config, logger=app.logger)
     app.extensions["smartdam.vision"] = build_huggingface_service(app.config, logger=app.logger)
 
@@ -102,21 +123,53 @@ def allowed_file(filename: str) -> bool:
     return extension in ALLOWED_EXTENSIONS
 
 
+_DASHBOARD_STATS_TTL_SECONDS = 30
+_DASHBOARD_STATS_TAG_SAMPLE_SIZE = 500
+_dashboard_stats_cache: dict[str, object] = {"computed_at": 0.0, "value": None}
+
+
 def build_dashboard_stats() -> dict[str, object]:
-    all_images = ImageAsset.query.all()
+    """Cheap-to-render dashboard counters.
+
+    total_images/images_with_people are SQL aggregates. Tag counting still needs
+    a Python pass because tags live in a serialized blob (tags_json), not a
+    normalized table — a real fix would need a schema change, which is out of
+    scope here. To avoid an O(n) full-table scan on every index/search render,
+    the whole result is cached for a short TTL and the tag pass is bounded to
+    the most recent N images instead of the entire table.
+    """
+    now = time.monotonic()
+    cached_value = _dashboard_stats_cache["value"]
+    if cached_value is not None and (now - _dashboard_stats_cache["computed_at"]) < _DASHBOARD_STATS_TTL_SECONDS:
+        return cached_value
+
+    total_images = db.session.query(func.count(ImageAsset.id)).scalar() or 0
+    images_with_people = (
+        db.session.query(func.count(ImageAsset.id)).filter(ImageAsset.has_people.is_(True)).scalar() or 0
+    )
+
+    recent_images = (
+        ImageAsset.query.order_by(ImageAsset.created_at.desc()).limit(_DASHBOARD_STATS_TAG_SAMPLE_SIZE).all()
+    )
     tag_counter: Counter = Counter()
-    for image in all_images:
+    for image in recent_images:
         for tag in image.tag_list:
             if tag.strip():
                 tag_counter[tag.strip().lower()] += 1
-    images_with_people = sum(1 for image in all_images if image.has_people)
 
-    return {
-        "total_images": len(all_images),
+    value = {
+        "total_images": total_images,
         "distinct_tags": len(tag_counter),
         "images_with_people": images_with_people,
         "top_tags": tag_counter.most_common(10),
     }
+    _dashboard_stats_cache["computed_at"] = now
+    _dashboard_stats_cache["value"] = value
+    return value
+
+
+def invalidate_dashboard_stats_cache() -> None:
+    _dashboard_stats_cache["value"] = None
 
 
 def clean_redirect_target(value: str | None) -> str | None:
@@ -257,7 +310,37 @@ def register_routes(app: Flask) -> None:
             page_copy="Résultats de votre recherche dans la bibliothèque visuelle.",
         )
 
+    @app.get("/login")
+    def login():
+        if current_user.is_authenticated:
+            return redirect(clean_redirect_target(request.args.get("next")) or url_for("index"))
+        return render_template("login.html", next_url=request.args.get("next", ""))
+
+    @app.post("/login")
+    def login_submit():
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        next_url = clean_redirect_target(request.form.get("next"))
+
+        if verify_credentials(username, password):
+            login_user(ADMIN_USER)
+            app.logger.info("Admin login succeeded for username='%s'.", username)
+            flash("Connexion réussie.", "success")
+            return redirect(next_url or url_for("index"))
+
+        app.logger.warning("Admin login failed for username='%s'.", username)
+        flash("Identifiant ou mot de passe incorrect.", "danger")
+        return redirect(url_for("login", next=next_url) if next_url else url_for("login"))
+
+    @app.post("/logout")
+    @login_required
+    def logout():
+        logout_user()
+        flash("Vous avez été déconnecté.", "success")
+        return redirect(url_for("index"))
+
     @app.post("/upload")
+    @login_required
     def upload_image():
         uploaded_file = request.files.get("image")
         if uploaded_file is None or uploaded_file.filename == "":
@@ -352,6 +435,7 @@ def register_routes(app: Flask) -> None:
                 image.thumbnail_url = url_for("image_thumbnail", image_id=image.id)
 
             db.session.commit()
+            invalidate_dashboard_stats_cache()
             app.logger.info("Image '%s' saved in database with id=%s.", original_filename, image.id)
 
             if analysis.source == "huggingface":
@@ -387,6 +471,7 @@ def register_routes(app: Flask) -> None:
         return redirect(url_for("index"))
 
     @app.post("/upload/async")
+    @login_required
     def upload_image_async():
         uploaded_file = request.files.get("image")
         if not uploaded_file or not uploaded_file.filename:
@@ -460,6 +545,7 @@ def register_routes(app: Flask) -> None:
                 image.thumbnail_url = url_for("image_thumbnail", image_id=image.id)
 
             db.session.commit()
+            invalidate_dashboard_stats_cache()
             app.logger.info("Async upload saved '%s' with id=%s (source=%s).", original_filename, image.id, analysis.source)
 
             return {
@@ -557,6 +643,7 @@ def register_routes(app: Flask) -> None:
         )
 
     @app.post("/images/<int:image_id>/delete")
+    @login_required
     def delete_image(image_id: int):
         image = ImageAsset.query.get_or_404(image_id)
         storage = app.extensions["smartdam.storage"]
@@ -565,11 +652,16 @@ def register_routes(app: Flask) -> None:
             storage.delete(image)
             db.session.delete(image)
             db.session.commit()
+            invalidate_dashboard_stats_cache()
             app.logger.info("Image id=%s deleted.", image_id)
             flash("Image supprimée.", "success")
+        except (StorageError, SQLAlchemyError):
+            db.session.rollback()
+            app.logger.exception("Image deletion failed for image_id=%s (storage or database error).", image_id)
+            flash("L'image n'a pas pu être supprimée.", "danger")
         except Exception:  # noqa: BLE001
             db.session.rollback()
-            app.logger.exception("Image deletion failed for image_id=%s.", image_id)
+            app.logger.exception("Unexpected error while deleting image_id=%s.", image_id)
             flash("L'image n'a pas pu être supprimée.", "danger")
 
         next_url = clean_redirect_target(request.form.get("next"))
@@ -577,6 +669,7 @@ def register_routes(app: Flask) -> None:
         return redirect(next_url or referrer_url or url_for("index"))
 
     @app.post("/images/<int:image_id>/favorite")
+    @login_required
     def toggle_favorite(image_id: int):
         image = ImageAsset.query.get_or_404(image_id)
         try:
@@ -589,6 +682,7 @@ def register_routes(app: Flask) -> None:
             return {"error": "Erreur lors de la mise à jour."}, 500
 
     @app.post("/images/<int:image_id>/reanalyze")
+    @login_required
     def reanalyze_image(image_id: int):
         image = ImageAsset.query.get_or_404(image_id)
         storage = app.extensions["smartdam.storage"]

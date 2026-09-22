@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Connexion · SmartDAM{% endblock %}
+
+{% block content %}
+<section class="login-shell">
+    <div class="login-card app-modal">
+        <p class="section-label mb-1">Connexion</p>
+        <h1 class="login-title">Accéder à SmartDAM</h1>
+        <p class="page-copy mb-4">Connectez-vous pour importer, renommer, ré-analyser ou supprimer des images.</p>
+
+        <form method="post" action="{{ url_for('login') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ next_url or '' }}">
+
+            <div class="mb-3">
+                <label class="form-label" for="login-username">Identifiant</label>
+                <input class="form-control" type="text" id="login-username" name="username" autocomplete="username" required autofocus>
+            </div>
+            <div class="mb-4">
+                <label class="form-label" for="login-password">Mot de passe</label>
+                <input class="form-control" type="password" id="login-password" name="password" autocomplete="current-password" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">Se connecter</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

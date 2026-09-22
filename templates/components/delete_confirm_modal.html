@@ -17,6 +17,7 @@
             </div>
             <div class="modal-footer">
                 <form method="post" id="deleteImageForm" class="w-100 d-flex flex-column flex-sm-row gap-2" data-loading-form data-loading-message="Suppression en cours...">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="next" id="deleteNextInput" value="">
                     <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">Annuler</button>
                     <button type="submit" class="btn btn-outline-danger flex-fill" id="deleteConfirmButton">

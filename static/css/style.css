@@ -690,6 +690,36 @@ mark.search-highlight {
     color: var(--app-text-muted);
 }
 
+.login-shell {
+    display: grid;
+    place-items: center;
+    padding-block: 3rem;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 26rem;
+    padding: 1.75rem;
+}
+
+.login-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.topbar__auth {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.topbar__auth-user {
+    color: var(--app-text-muted);
+    font-size: 0.86rem;
+}
+
 @media (max-width: 991.98px) {
     .topbar__inner {
         grid-template-columns: 1fr;

@@ -17,10 +17,30 @@
     const detailModal = detailModalElement ? bootstrap.Modal.getOrCreateInstance(detailModalElement) : null;
     const deleteModal = deleteModalElement ? bootstrap.Modal.getOrCreateInstance(deleteModalElement) : null;
 
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    const withCsrfHeader = (headers) => ({ ...(headers || {}), "X-CSRFToken": CSRF_TOKEN });
+
     const showLoadingOverlay = (message) => {
         if (!loadingOverlay) return;
         if (loadingMessage) loadingMessage.textContent = message || "Chargement en cours...";
         loadingOverlay.hidden = false;
+    };
+
+    const hideLoadingOverlay = () => {
+        if (!loadingOverlay) return;
+        loadingOverlay.hidden = true;
+    };
+
+    // Shared inline status message helper (success/error text that auto-hides).
+    // Reused by re-analyze, rename, and voice search so the pattern only lives once.
+    const showInlineStatus = (element, message, isError) => {
+        if (!element) return;
+        element.textContent = message;
+        element.className = `detail-reanalyze-status ${isError ? "text-danger" : "text-success"}`;
+        element.classList.remove("d-none");
+        if (!isError) {
+            setTimeout(() => element.classList.add("d-none"), 3000);
+        }
     };
 
     const decorateSubmitButton = (button) => {
@@ -55,7 +75,7 @@
                 const url = button.dataset.favoriteUrl;
                 if (!url) return;
                 try {
-                    const response = await fetch(url, { method: "POST" });
+                    const response = await fetch(url, { method: "POST", headers: withCsrfHeader() });
                     if (!response.ok) throw new Error("Request failed");
                     const data = await response.json();
                     const isFav = data.is_favorite;
@@ -81,7 +101,7 @@
             if (!url) return;
 
             try {
-                const response = await fetch(url, { method: "POST" });
+                const response = await fetch(url, { method: "POST", headers: withCsrfHeader() });
                 if (!response.ok) throw new Error("Request failed");
                 const data = await response.json();
                 const isFav = data.is_favorite;
@@ -124,7 +144,7 @@
             if (status) status.classList.add("d-none");
 
             try {
-                const response = await fetch(url, { method: "POST" });
+                const response = await fetch(url, { method: "POST", headers: withCsrfHeader() });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || "Erreur inconnue");
 
@@ -146,18 +166,9 @@
                     }
                 }
 
-                if (status) {
-                    status.textContent = "Analyse mise à jour.";
-                    status.className = "detail-reanalyze-status text-success";
-                    status.classList.remove("d-none");
-                    setTimeout(() => status.classList.add("d-none"), 3000);
-                }
+                showInlineStatus(status, "Analyse mise à jour.", false);
             } catch (err) {
-                if (status) {
-                    status.textContent = err.message || "L'analyse a échoué.";
-                    status.className = "detail-reanalyze-status text-danger";
-                    status.classList.remove("d-none");
-                }
+                showInlineStatus(status, err.message || "L'analyse a échoué.", true);
             } finally {
                 btn.disabled = false;
                 if (label) label.textContent = "Ré-analyser";
@@ -314,7 +325,7 @@
                 formData.append("image", file, file.name);
 
                 try {
-                    const response = await fetch("/upload/async", { method: "POST", body: formData });
+                    const response = await fetch("/upload/async", { method: "POST", headers: withCsrfHeader(), body: formData });
                     const data = await response.json();
 
                     if (!response.ok || data.status === "error") {
