@@ -125,6 +125,55 @@ TAG_FR_TRANSLATIONS: dict[str, str] = {
     "bed": "lit",
     "toilet": "toilettes",
     "wine bottle": "bouteille de vin",
+    # ── COCO / DETR — remaining classes not already covered above ─────────
+    # (kept even where a food-distribution context is unlikely, so nothing
+    # that survives the IRRELEVANT_TAGS filter is ever left untranslated)
+    "airplane": "avion",
+    "train": "train",
+    "boat": "bateau",
+    "traffic light": "feu de circulation",
+    "fire hydrant": "borne à incendie",
+    "stop sign": "panneau stop",
+    "parking meter": "horodateur",
+    "bench": "banc",
+    "backpack": "sac à dos",
+    "umbrella": "parapluie",
+    "handbag": "sac à main",
+    "tie": "cravate",
+    "suitcase": "valise",
+    "frisbee": "frisbee",
+    "skis": "skis",
+    "snowboard": "snowboard",
+    "sports ball": "ballon de sport",
+    "kite": "cerf-volant",
+    "baseball bat": "batte de baseball",
+    "baseball glove": "gant de baseball",
+    "skateboard": "skateboard",
+    "surfboard": "planche de surf",
+    "tennis racket": "raquette de tennis",
+    "tv": "télévision",
+    "laptop": "ordinateur portable",
+    "mouse": "souris",
+    "remote": "télécommande",
+    "keyboard": "clavier",
+    "cell phone": "téléphone portable",
+    "book": "livre",
+    "clock": "horloge",
+    "teddy bear": "ours en peluche",
+    "hair drier": "sèche-cheveux",
+    "toothbrush": "brosse à dents",
+    # ── COCO / DETR animals — plausible in farm/sourcing photography for a
+    # food distributor; only the literal "bird" class is filtered (see
+    # IRRELEVANT_TAGS), the rest are legitimate, specific content
+    "cat": "chat",
+    "dog": "chien",
+    "horse": "cheval",
+    "sheep": "mouton",
+    "cow": "vache",
+    "elephant": "éléphant",
+    "bear": "ours",
+    "zebra": "zèbre",
+    "giraffe": "girafe",
     # ── ResNet-50 / ImageNet food & kitchen ───────────────────────────────
     "bakery": "boulangerie",
     "bread": "pain",
@@ -173,6 +222,43 @@ TAG_FR_TRANSLATIONS: dict[str, str] = {
     "wine": "vin",
     "drink": "boisson",
     "beverage": "boisson",
+    "salmon": "saumon",
+    "tuna": "thon",
+    "lobster": "homard",
+    "crab": "crabe",
+    "oyster": "huître",
+    "shellfish": "fruits de mer",
+    "pie": "tarte",
+    "muffin": "muffin",
+    "pancake": "crêpe",
+    "waffle": "gaufre",
+    "sausage": "saucisse",
+    "bacon": "bacon",
+    "ham": "jambon",
+    "turkey": "dinde",
+    "duck": "canard",
+    "herbs": "herbes",
+    "spice": "épice",
+    "spices": "épices",
+    "sauce": "sauce",
+    "honey": "miel",
+    "jam": "confiture",
+    "nuts": "noix",
+    "almond": "amande",
+    # ── Packaging & distribution ────────────────────────────────────────
+    "box": "boîte",
+    "crate": "caisse",
+    "basket": "panier",
+    "jar": "bocal",
+    "can": "boîte de conserve",
+    "tray": "plateau",
+    "packaging": "emballage",
+    "label": "étiquette",
+    "warehouse": "entrepôt",
+    "market": "marché",
+    "supermarket": "supermarché",
+    "grocery": "épicerie",
+    "shelf": "étagère",
     # ── Kitchen & environment ─────────────────────────────────────────────
     "kitchen": "cuisine",
     "plate": "assiette",
@@ -644,9 +730,22 @@ class HuggingFaceService:
 
         return f"Éléments détectés : {', '.join(priority_tags[:-1])} et {priority_tags[-1]}."
 
-    @staticmethod
-    def _translate_tag(tag: str) -> str:
-        return TAG_FR_TRANSLATIONS.get(tag, tag)
+    def _translate_tag(self, tag: str) -> str:
+        # If a tag has no French entry, we keep it in English rather than
+        # dropping it: dropping would silently remove metadata that might
+        # still be correct (and search for that term would find nothing),
+        # trading one silent-failure mode for another. A visible English tag
+        # plus a log line is exactly how the "bird" bug was originally
+        # caught — visible + logged beats invisible. Logging every miss
+        # makes coverage gaps show up immediately going forward.
+        translated = TAG_FR_TRANSLATIONS.get(tag)
+        if translated is None:
+            self.logger.warning(
+                "No French translation for tag '%s' — displaying in English. Add it to TAG_FR_TRANSLATIONS.",
+                tag,
+            )
+            return tag
+        return translated
 
     def _clean_tag(self, value: str) -> str:
         cleaned = value.strip().lower()
